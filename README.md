@@ -1,101 +1,103 @@
-# Guard Backend
+# Hospital Management Backend
 
-A Node.js backend API built with Fastify, PostgreSQL, and Sequelize.
+Multi-tenant Fastify services for the Hospital CRM platform. The monorepo contains the Owner API (central administration + provisioning) and the Tenant API (per-hospital CRM runtime) implemented with Sequelize, Socket.IO, and Coolify deployment automation.
 
-## Features
+## Repository Structure
 
-- 🚀 Fastify web framework
-- 🗄️ PostgreSQL database with Sequelize ORM
-- 🔐 JWT authentication
-- 📝 Swagger/OpenAPI documentation
-- 🛡️ Security middleware (Helmet, CORS, Rate Limiting)
-- 📦 Package management with pnpm
-- 🐳 Docker support
+- `owner-api/` – Owner control plane (tenants, plans, subscriptions, features, templates, Coolify provisioning, audit, owner-socket).
+- `tenant-api/` – Tenant runtime (auth, users, RBAC, CRM modules, analytics, search, sockets, admin-sync).
+- `docs/` – Project guides and scope notes.
+- `docker-compose.yml` – Example Coolify/compose reference for local orchestration.
 
-## Prerequisites
+Each API is organized with modular boundaries: `src/modules/*` contain scoped controllers/services/schemas/routes; `src/database` handles Sequelize initialization, models, migrations, and seeders; `src/common` stores shared utilities (e.g., pagination helpers).
 
-- Node.js 20+
-- pnpm
-- PostgreSQL
+## Getting Started
 
-## Installation
+1. **Install dependencies**
+   ```bash
+   cd owner-api && pnpm install
+   cd ../tenant-api && pnpm install
+   ```
 
-1. Install dependencies:
-```bash
-pnpm install
-```
+2. **Environment variables**
+   Copy `.env.example` from both `owner-api/` and `tenant-api/` into `.env` files and adjust secrets (Postgres URLs, JWT secrets, Redis, Coolify credentials, Owner base URL, sync token, etc.).
 
-2. Copy environment variables:
-```bash
-# On Windows (PowerShell)
-Copy-Item env.example .env
+3. **Owner database setup** (databases are created automatically if missing)
+   ```bash
+   cd owner-api
+   pnpm exec sequelize-cli db:migrate --config sequelize.config.js --migrations-path database/migrations
+   pnpm exec sequelize-cli db:seed:all --config sequelize.config.js --seeders-path database/seeders
+   ```
 
-# On Linux/Mac
-cp env.example .env
-```
+4. **Register a tenant via Owner API**
+   ```bash
+   cd ../tenant-api
+   pnpm run register-tenant -- \
+     --company "City General Hospital" \
+     --subdomain citygeneral \
+     --db hospital_citygeneral \
+     --region us-east-1
+   ```
+   The script logs into the Owner API (using `OWNER_API_BASE`, `OWNER_SUPERADMIN_EMAIL`, `OWNER_SUPERADMIN_PASSWORD`) and creates the tenant record, printing the new `tenant.id`. Copy that UUID into the tenant `.env` as `TENANT_ID`.
 
-3. Update `.env` with your database credentials and other configuration.
+5. **Tenant database setup**
+   ```bash
+   pnpm exec sequelize-cli db:migrate --config sequelize.config.js --migrations-path database/migrations
+   pnpm exec sequelize-cli db:seed:all --config sequelize.config.js --seeders-path database/seeders
+   ```
 
-4. Setup database:
-```bash
-pnpm db:setup
-```
+6. **Run services**
+   ```bash
+   cd owner-api
+   pnpm run dev
 
-## Development
+   cd ../tenant-api
+   pnpm run dev
+   ```
 
-Start the unified backend development server:
-```bash
-pnpm dev
-```
+Owner API defaults to port `4001`, tenant API to `4002` (see `.env.example`).  
+All HTTP routes are prefixed with `/api/v1` (e.g., `http://localhost:4001/api/v1/owner/auth/login`).
 
-The backend will be available at `http://localhost:4000` with:
-- **Root**: `http://localhost:4000/` - API info
-- **Health Check**: `http://localhost:4000/health`
-- **Superadmin API**: `http://localhost:4000/api/v1/superadmin`
-- **Guard API**: `http://localhost:4000/api/v1/guard`
-- **API Docs**: `http://localhost:4000/docs`
+## Key Features (work in progress)
 
-## Scripts
+- **Owner API**
+  - Owner users management (super-admin/admin)
+  - Tenant lifecycle (plans, subscriptions, features, templates, provisioning via Coolify, VPS nodes, audit log)
+  - Socket-enabled telemetry channel (optional) and Swagger-ready configuration
+  - Export endpoints + global template version/diff for tenant sync, guarded by `TENANT_SYNC_WEBHOOK_TOKEN`
+  - Tenant sync webhook trigger (`POST /owner/tenants/:id/notify-sync`) for manual cache refreshes
+  - Database health monitoring (`GET /owner/tenants/:id/database-health`) to check both primary and secondary database connections per tenant
 
-- `pnpm dev` - Start unified backend development server with hot reload
-- `pnpm start` - Start unified backend production server
-- `pnpm generate:secrets` - Generate secure JWT access and refresh token secrets
-- `pnpm db:setup` - Create database, run migrations, and seed data
-- `pnpm db:migrate` - Run database migrations
-- `pnpm db:seed` - Run database seeders
+- **Tenant API**
+  - Auth + RBAC guards (roles, permissions, departments)
+  - Hospital modules: users, admin, roles, departments, permissions
+  - Socket.IO namespace `/app`
+  - Admin sync with feature + subscription + template cache persistence and diff endpoint
+  - Dual database support (local PostgreSQL + online PostgreSQL) with health monitoring
+  - Swagger documentation available at `/docs` endpoint
+  - Seeded with hospital departments (Administration, Medical, Nursing, Pharmacy, Laboratory, Radiology, Emergency, Surgery, Finance, HR, IT, Maintenance)
+  - Pre-configured roles (admin, sub-admin, doctor, nurse, pharmacist, lab-technician, radiologist, finance-manager, hr-manager, it-admin)
+  - First admin user created: `admin@hospital.com` / `Admin@123` (change on first login)
 
-## Project Structure
+## Next Steps
 
-```
-guard_backend/
-├── src/
-│   ├── superadmin-api/  # Superadmin API (port 4001)
-│   │   ├── config/      # Fastify plugins configuration
-│   │   ├── core/        # Core middleware and decorators
-│   │   ├── database/    # Database connection and models
-│   │   ├── modules/     # API routes and modules
-│   │   ├── common/      # Shared utilities
-│   │   └── server.js    # Superadmin API entry point
-│   └── guard-api/       # Guard API (port 4002)
-│       ├── config/      # Fastify plugins configuration
-│       ├── core/        # Core middleware and decorators
-│       ├── database/    # Database connection and models
-│       ├── modules/     # API routes and modules
-│       ├── common/      # Shared utilities
-│       └── server.js    # Guard API entry point
-├── database/
-│   ├── migrations/      # Sequelize migrations
-│   └── seeders/         # Database seeders
-├── logs/                # Application logs
-├── sequelize.config.js  # Sequelize configuration
-└── package.json
-```
+- Surface template/version diffing for tenant UI and emit change webhooks.
+- Expand cURL/OpenAPI docs for remaining endpoints and automate publishing.
+- Integrate Coolify deployment status polling as background job, add file storage provider integrations, analytics/AI enhancements, and expand automated tests.
 
-## Environment Variables
+## Database Configuration
 
-See `.env.example` for all available environment variables.
+The tenant API supports dual database connections:
+- **Primary Database (Local)**: Required for hospital operations, configured via `TENANT_PG_URL`
+- **Secondary Database (Online)**: Optional, configured via `TENANT_PG_URL_ONLINE` - used for sync, backup, and external access
 
-## License
+If the online database is not connected, the server will show an error in logs but continue running. The primary (local) database connection is required for the server to start.
 
-Private
+## Health Monitoring
 
+The owner API provides database health checks for each tenant:
+- Endpoint: `GET /api/v1/owner/tenants/:id/database-health`
+- Returns status of both primary (local) and secondary (online) databases
+- Primary (local) is required for operations
+- Secondary (online) is optional and used for sync/backup/external access
+- Useful for monitoring database connectivity in production environments

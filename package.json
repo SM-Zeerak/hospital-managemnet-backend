@@ -1,51 +1,29 @@
 {
-    "name": "guard-backend",
-    "version": "0.1.0",
-    "type": "module",
+    "name": "hospital-management-backend",
     "private": true,
+    "type": "module",
+    "workspaces": [
+        "owner-api",
+        "tenant-api"
+    ],
     "scripts": {
-        "dev": "nodemon --watch src --ext js,mjs,cjs,json src/server.js",
-        "start": "node src/server.js",
-        "generate:secrets": "node scripts/generate-secrets.js",
-        "db:setup": "pnpm exec sequelize-cli db:create --config sequelize.config.js --env development && pnpm exec sequelize-cli db:migrate --config sequelize.config.js --migrations-path database/migrations && pnpm exec sequelize-cli db:seed:all --config sequelize.config.js --seeders-path database/seeders",
-        "db:migrate": "pnpm exec sequelize-cli db:migrate --config sequelize.config.js --migrations-path database/migrations",
-        "db:seed": "pnpm exec sequelize-cli db:seed:all --config sequelize.config.js --seeders-path database/seeders"
+        "bootstrap": "pnpm install --workspace=owner-api && pnpm install --workspace=tenant-api",
+        "lint": "echo \"TODO: add root lint script\"",
+        "format": "echo \"TODO: add formatter\"",
+        "lint:owner": "pnpm lint --workspace=owner-api",
+        "lint:tenant": "pnpm lint --workspace=tenant-api",
+        "format:owner": "pnpm format --workspace=owner-api",
+        "format:tenant": "pnpm format --workspace=tenant-api",
+        "dev:owner": "pnpm dev --workspace=owner-api",
+        "dev:tenant": "pnpm dev --workspace=tenant-api",
+        "start:owner": "pnpm start --workspace=owner-api",
+        "start:tenant": "pnpm start --workspace=tenant-api",
+        "build:owner": "pnpm build --workspace=owner-api",
+        "build:tenant": "pnpm build --workspace=tenant-api",
+        "dev:all": "pnpm dev:owner & pnpm dev:tenant"
     },
-    "dependencies": {
-        "@fastify/cors": "^8.4.1",
-        "@fastify/helmet": "^11.1.1",
-        "@fastify/jwt": "^6.7.1",
-        "@fastify/rate-limit": "^8.1.1",
-        "@fastify/sensible": "^5.2.0",
-        "@fastify/swagger": "^8.13.0",
-        "@fastify/swagger-ui": "^3.0.0",
-        "bcrypt": "^6.0.0",
-        "dayjs": "^1.11.19",
-        "dotenv": "^17.2.3",
-        "fastify": "^4.26.2",
-        "fastify-plugin": "^4.5.0",
-        "ioredis": "^5.8.2",
-        "jsonwebtoken": "^9.0.2",
-        "nodemailer": "^6.9.13",
-        "node-fetch": "^3.3.2",
-        "pg": "^8.16.3",
-        "pg-hstore": "^2.3.4",
-        "pino": "^10.1.0",
-        "pino-pretty": "^13.1.2",
-        "sanitize-html": "^2.17.0",
-        "sequelize": "^6.37.7",
-        "sequelize-cli": "^6.6.3",
-        "socket.io": "^4.8.1",
-        "undici": "^7.16.0",
-        "uuid": "^13.0.0",
-        "zod": "^4.1.12"
-    },
-    "devDependencies": {
-        "cross-env": "^10.1.0",
-        "nodemon": "^3.1.10",
-        "rimraf": "^6.1.0",
-        "supertest": "^7.1.4",
-        "vitest": "^4.0.8"
+    "engines": {
+        "node": ">=20.11.0",
+        "pnpm": ">=9.15.2"
     }
 }
-
