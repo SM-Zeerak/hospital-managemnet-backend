@@ -82,6 +82,7 @@ module.exports = {
                         'calendar.read', 'calendar.manage',
                         'files.read', 'files.upload',
                         'knowledge.read', 'knowledge.manage',
+                        'staff.read', 'staff.create', 'staff.update', 'staff.delete',
                         'analytics.view',
                         'search.view',
                         'templates.view',
@@ -89,7 +90,7 @@ module.exports = {
                     ]
                 }),
                 metadata: { entity: 'roles-permissions' },
-                version: 5,
+                version: 7,
                 is_active: true,
                 created_at: now,
                 updated_at: now
@@ -159,7 +160,7 @@ module.exports = {
             `,
             {
                 replacements: {
-                    version: 6,
+                    version: 7,
                     updatedAt: now
                 }
             }

@@ -9,15 +9,23 @@ import fs from 'node:fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-// Get tenant-api path relative to owner-api
-const tenantApiPath = resolve(process.cwd(), '../tenant-api');
+// Helper to get API path based on tenant type
+function getTenantApiPath(type) {
+    const apiMap = {
+        'HOSPITAL': '../tenant-api',
+        'SCHOOL': '../school-api',
+        'GUARD': '../guards-api'
+    };
+    const relativePath = apiMap[type] || '../tenant-api';
+    return resolve(process.cwd(), relativePath);
+}
 
-function assertTenantApiInstalled() {
-    const dotenvPkg = join(tenantApiPath, 'node_modules', 'dotenv', 'package.json');
+function assertTenantApiInstalled(apiPath) {
+    const dotenvPkg = join(apiPath, 'node_modules', 'dotenv', 'package.json');
     if (!fs.existsSync(dotenvPkg)) {
         throw new Error(
-            `tenant-api dependencies are not installed. ` +
-            `Run: cd "${tenantApiPath}" && pnpm install`
+            `Dependencies not installed in ${apiPath}. ` +
+            `Run: cd "${apiPath}" && pnpm install`
         );
     }
 }
@@ -68,7 +76,7 @@ export async function listTenants(models, options = {}) {
 export async function createTenant(models, payload) {
     const { Tenant } = models;
     const { firstAdmin, ...tenantData } = payload;
-    
+
     // Create tenant record
     const tenant = await Tenant.create({
         ...tenantData,
@@ -82,10 +90,11 @@ export async function createTenant(models, payload) {
 }
 
 async function setupTenantDatabase(tenant, adminData) {
-    assertTenantApiInstalled();
+    const apiPath = getTenantApiPath(tenant.type);
+    assertTenantApiInstalled(apiPath);
 
     // Construct tenant database URL (using local DB as both primary and secondary for now)
-    const dbUrlTemplate = process.env.TENANT_PG_URL_TEMPLATE || 
+    const dbUrlTemplate = process.env.TENANT_PG_URL_TEMPLATE ||
         process.env.TENANT_PG_URL?.replace(/\/[^\/]+$/, '/{dbname}') || null;
 
     if (!dbUrlTemplate) {
@@ -120,8 +129,8 @@ async function setupTenantDatabase(tenant, adminData) {
     // Step 2: Run migrations
     try {
         execSync(
-            `cd "${tenantApiPath}" && TENANT_PG_URL="${dbUrl}" TENANT_ID="${tenant.id}" pnpm exec sequelize-cli db:migrate --config sequelize.config.js --migrations-path database/migrations`,
-            { stdio: 'pipe', env: { ...process.env, TENANT_PG_URL: dbUrl, TENANT_ID: tenant.id }, cwd: tenantApiPath }
+            `cd "${apiPath}" && TENANT_PG_URL="${dbUrl}" TENANT_ID="${tenant.id}" pnpm exec sequelize-cli db:migrate --config sequelize.config.js --migrations-path database/migrations`,
+            { stdio: 'pipe', env: { ...process.env, TENANT_PG_URL: dbUrl, TENANT_ID: tenant.id }, cwd: apiPath }
         );
         console.log(`✓ Migrations completed for ${tenant.tenantDbName}`);
     } catch (error) {
@@ -131,8 +140,8 @@ async function setupTenantDatabase(tenant, adminData) {
     // Step 3: Run seeders (creates departments, roles, permissions)
     try {
         execSync(
-            `cd "${tenantApiPath}" && TENANT_PG_URL="${dbUrl}" TENANT_ID="${tenant.id}" pnpm exec sequelize-cli db:seed:all --config sequelize.config.js --seeders-path database/seeders`,
-            { stdio: 'pipe', env: { ...process.env, TENANT_PG_URL: dbUrl, TENANT_ID: tenant.id }, cwd: tenantApiPath }
+            `cd "${apiPath}" && TENANT_PG_URL="${dbUrl}" TENANT_ID="${tenant.id}" pnpm exec sequelize-cli db:seed:all --config sequelize.config.js --seeders-path database/seeders`,
+            { stdio: 'pipe', env: { ...process.env, TENANT_PG_URL: dbUrl, TENANT_ID: tenant.id }, cwd: apiPath }
         );
         console.log(`✓ Seeders completed for ${tenant.tenantDbName}`);
     } catch (error) {
@@ -155,7 +164,7 @@ async function setupTenantDatabase(tenant, adminData) {
 
 async function createFirstAdminUser(tenant, adminData, dbUrl) {
     if (!dbUrl) {
-        dbUrl = process.env.TENANT_PG_URL_TEMPLATE 
+        dbUrl = process.env.TENANT_PG_URL_TEMPLATE
             ? process.env.TENANT_PG_URL_TEMPLATE.replace('{dbname}', tenant.tenantDbName)
             : process.env.TENANT_PG_URL?.replace(/\/[^\/]+$/, `/${tenant.tenantDbName}`) || null;
     }
@@ -194,7 +203,7 @@ async function createFirstAdminUser(tenant, adminData, dbUrl) {
 
         // Check if admin user already exists
         const existingUser = await tenantSequelize.query(
-            `SELECT id FROM users WHERE email = $1`,
+            `SELECT id FROM users WHERE email = ?`,
             {
                 replacements: [adminData.email],
                 type: tenantSequelize.QueryTypes.SELECT
@@ -206,7 +215,7 @@ async function createFirstAdminUser(tenant, adminData, dbUrl) {
             // Create admin user
             const adminUserResult = await tenantSequelize.query(
                 `INSERT INTO users (id, email, password_hash, first_name, last_name, tenant_id, department_id, status, created_at, updated_at)
-                 VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, 'active', NOW(), NOW())
+                 VALUES (gen_random_uuid(), ?, ?, ?, ?, ?, ?, 'active', NOW(), NOW())
                  RETURNING id, email, first_name, last_name, status`,
                 {
                     replacements: [
@@ -226,7 +235,7 @@ async function createFirstAdminUser(tenant, adminData, dbUrl) {
             // Assign admin role
             await tenantSequelize.query(
                 `INSERT INTO user_role_map (id, user_id, role_id, created_at, updated_at) 
-                 VALUES (gen_random_uuid(), $1, $2, NOW(), NOW()) 
+                 VALUES (gen_random_uuid(), ?, ?, NOW(), NOW()) 
                  ON CONFLICT DO NOTHING`,
                 {
                     replacements: [adminUser.id, adminRole.id],
@@ -339,7 +348,7 @@ export async function checkTenantDatabaseHealth(app, tenantId) {
 
     // Construct primary database URL (local) - required for hospital operations
     // Assuming format: postgres://user:pass@host:port/dbname
-    const primaryDbUrl = process.env.TENANT_PG_URL_TEMPLATE 
+    const primaryDbUrl = process.env.TENANT_PG_URL_TEMPLATE
         ? process.env.TENANT_PG_URL_TEMPLATE.replace('{dbname}', tenant.tenantDbName)
         : process.env.TENANT_PG_URL?.replace(/\/[^\/]+$/, `/${tenant.tenantDbName}`) || null;
 
@@ -387,7 +396,7 @@ export async function checkTenantDatabaseHealth(app, tenantId) {
 
     // Primary (local) must be connected. Secondary (online) is optional for sync/backup
     const allHealthy = health.primary.connected;
-    
+
     return {
         ok: allHealthy,
         health
@@ -400,7 +409,7 @@ export async function listTenantUsers(app, tenantId, options = {}) {
         return { ok: false, status: 404, message: 'Tenant not found' };
     }
 
-    const dbUrl = process.env.TENANT_PG_URL_TEMPLATE 
+    const dbUrl = process.env.TENANT_PG_URL_TEMPLATE
         ? process.env.TENANT_PG_URL_TEMPLATE.replace('{dbname}', tenant.tenantDbName)
         : process.env.TENANT_PG_URL?.replace(/\/[^\/]+$/, `/${tenant.tenantDbName}`) || null;
 
@@ -478,7 +487,7 @@ export async function createTenantUser(app, tenantId, userData) {
         return { ok: false, status: 404, message: 'Tenant not found' };
     }
 
-    const dbUrl = process.env.TENANT_PG_URL_TEMPLATE 
+    const dbUrl = process.env.TENANT_PG_URL_TEMPLATE
         ? process.env.TENANT_PG_URL_TEMPLATE.replace('{dbname}', tenant.tenantDbName)
         : process.env.TENANT_PG_URL?.replace(/\/[^\/]+$/, `/${tenant.tenantDbName}`) || null;
 

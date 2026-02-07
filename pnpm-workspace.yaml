@@ -1,0 +1,5 @@
+packages:
+  - 'owner-api'
+  - 'tenant-api'
+  - 'school-api'
+  - 'guards-api'

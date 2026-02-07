@@ -33,7 +33,7 @@ module.exports = {
             }
         );
         const existingDeptNameSet = new Set(existingDeptNames.map(d => d.name));
-        
+
         const departmentsToInsert = departmentDefs
             .filter(dep => !existingDeptNameSet.has(dep.name))
             .map((dep) => ({
@@ -43,11 +43,11 @@ module.exports = {
                 created_at: now,
                 updated_at: now
             }));
-        
+
         if (departmentsToInsert.length > 0) {
             await queryInterface.bulkInsert('departments', departmentsToInsert);
         }
-        
+
         // Get all departments (existing + newly inserted) for later use
         const allDepartments = await queryInterface.sequelize.query(
             `SELECT id, name FROM departments WHERE name IN (:names)`,
@@ -80,7 +80,19 @@ module.exports = {
             ['permissions.read', 'View permissions'],
             ['permissions.create', 'Create permissions'],
             ['permissions.update', 'Update permissions'],
-            ['permissions.delete', 'Delete permissions']
+            ['permissions.delete', 'Delete permissions'],
+            ['staff.read', 'View staff'],
+            ['staff.create', 'Create staff'],
+            ['staff.update', 'Update staff'],
+            ['staff.delete', 'Delete staff'],
+            ['beds.read', 'View beds'],
+            ['beds.create', 'Create beds'],
+            ['beds.update', 'Update beds'],
+            ['beds.delete', 'Delete beds'],
+            ['rooms.read', 'View rooms'],
+            ['rooms.create', 'Create rooms'],
+            ['rooms.update', 'Update rooms'],
+            ['rooms.delete', 'Delete rooms']
         ];
 
         // Check for existing permissions
@@ -92,7 +104,7 @@ module.exports = {
             }
         );
         const existingPermKeySet = new Set(existingPermKeys.map(p => p.key));
-        
+
         const permissionsToInsert = permissionDefs
             .filter(([key]) => !existingPermKeySet.has(key))
             .map(([key, name]) => ({
@@ -103,11 +115,11 @@ module.exports = {
                 created_at: now,
                 updated_at: now
             }));
-        
+
         if (permissionsToInsert.length > 0) {
             await queryInterface.bulkInsert('permissions', permissionsToInsert);
         }
-        
+
         // Get all permissions (existing + newly inserted) for later use
         const allPermissions = await queryInterface.sequelize.query(
             `SELECT id, key FROM permissions WHERE key IN (:keys)`,
@@ -159,7 +171,10 @@ module.exports = {
                     'users.read',
                     'departments.read',
                     'roles.read',
-                    'permissions.read'
+                    'permissions.read',
+                    'beds.read',
+                    'beds.update',
+                    'rooms.read'
                 ]
             },
             {
@@ -207,7 +222,10 @@ module.exports = {
                     'users.read',
                     'departments.read',
                     'roles.read',
-                    'permissions.read'
+                    'permissions.read',
+                    'beds.read',
+                    'beds.update',
+                    'rooms.read'
                 ]
             },
             {
@@ -248,7 +266,7 @@ module.exports = {
             }
         );
         const existingRoleNameSet = new Set(existingRoleNames.map(r => r.name));
-        
+
         const rolesToInsert = roleDefs
             .filter(role => !existingRoleNameSet.has(role.name))
             .map((role) => {
@@ -262,11 +280,11 @@ module.exports = {
                     updated_at: now
                 };
             });
-        
+
         if (rolesToInsert.length > 0) {
             await queryInterface.bulkInsert('roles', rolesToInsert);
         }
-        
+
         const allRoles = await queryInterface.sequelize.query(
             `SELECT id, name FROM roles WHERE name IN (:names)`,
             {
@@ -279,7 +297,7 @@ module.exports = {
             acc[role.name] = role.id;
             return acc;
         }, {});
-        
+
         // Update role department associations
         for (const role of roleDefs) {
             if (role.department) {
@@ -303,7 +321,7 @@ module.exports = {
              WHERE role_id IN (:roleIds) AND permission_id IN (:permissionIds)`,
             {
                 type: queryInterface.sequelize.QueryTypes.SELECT,
-                replacements: { 
+                replacements: {
                     roleIds: allRoles.map(r => r.id),
                     permissionIds: allPermissions.map(p => p.id)
                 }
@@ -312,12 +330,12 @@ module.exports = {
         const existingRolePermSet = new Set(
             existingRolePerms.map(rp => `${rp.role_id}:${rp.permission_id}`)
         );
-        
+
         const rolePermissionMap = [];
         for (const role of roleDefs) {
             const roleId = roleIdByName[role.name];
             if (!roleId) continue;
-            
+
             const permissionIds = new Set(role.permissions.map((key) => permissionIdByKey[key]).filter(Boolean));
             permissionIds.forEach((permissionId) => {
                 const key = `${roleId}:${permissionId}`;
@@ -332,14 +350,14 @@ module.exports = {
                 }
             });
         }
-        
+
         if (rolePermissionMap.length > 0) {
             await queryInterface.bulkInsert('role_permission_map', rolePermissionMap);
         }
 
         // Create first admin user with all permissions
         const tenantId = process.env.TENANT_ID || uuid();
-        
+
         // Get admin department
         const adminDept = allDepartments.find((dep) => dep.name === 'Administration');
         if (!adminDept) {
@@ -354,7 +372,7 @@ module.exports = {
                 replacements: { email: 'admin@hospital.com' }
             }
         );
-        
+
         let adminUserId;
         if (existingUsers.length === 0) {
             const users = [{
@@ -380,13 +398,13 @@ module.exports = {
             `SELECT id FROM user_role_map WHERE user_id = :userId AND role_id = :roleId`,
             {
                 type: queryInterface.sequelize.QueryTypes.SELECT,
-                replacements: { 
+                replacements: {
                     userId: adminUserId,
                     roleId: roleIdByName['admin']
                 }
             }
         );
-        
+
         if (existingUserRole.length === 0 && roleIdByName['admin']) {
             await queryInterface.bulkInsert('user_role_map', [
                 {

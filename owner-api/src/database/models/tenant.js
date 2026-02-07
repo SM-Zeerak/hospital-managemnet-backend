@@ -1,6 +1,6 @@
 import { DataTypes, Model } from 'sequelize';
 
-export class Tenant extends Model {}
+export class Tenant extends Model { }
 
 export function initTenantModel(sequelize) {
     Tenant.init(
@@ -14,6 +14,11 @@ export function initTenantModel(sequelize) {
                 type: DataTypes.STRING(150),
                 allowNull: false,
                 field: 'company_name'
+            },
+            type: {
+                type: DataTypes.ENUM('HOSPITAL', 'SCHOOL', 'GUARD'),
+                allowNull: false,
+                defaultValue: 'HOSPITAL'
             },
             subdomain: {
                 type: DataTypes.STRING(80),

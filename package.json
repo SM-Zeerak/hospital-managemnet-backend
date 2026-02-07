@@ -4,12 +4,17 @@
     "type": "module",
     "workspaces": [
         "owner-api",
-        "tenant-api"
+        "tenant-api",
+        "school-api",
+        "guards-api"
     ],
     "scripts": {
         "bootstrap": "pnpm install --workspace=owner-api && pnpm install --workspace=tenant-api",
         "lint": "echo \"TODO: add root lint script\"",
         "format": "echo \"TODO: add formatter\"",
+        "report-tenant": "echo 'Did you mean register-tenant?'",
+        "register-tenant": "pnpm --filter ./owner-api register-tenant",
+        "register-tenant:owner": "pnpm --filter ./owner-api register-tenant",
         "lint:owner": "pnpm lint --workspace=owner-api",
         "lint:tenant": "pnpm lint --workspace=tenant-api",
         "format:owner": "pnpm format --workspace=owner-api",

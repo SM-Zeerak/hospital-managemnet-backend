@@ -6,6 +6,8 @@ import { initRolePermissionModel } from './role-permission.js';
 import { initTenantPasswordResetModel } from './tenant-password-reset.js';
 import { initTenantSessionModel } from './tenant-session.js';
 import { initTenantEmailVerificationModel } from './tenant-email-verification.js';
+import { initRoomModel } from './room.js';
+import { initBedModel } from './bed.js';
 
 function applyAssociations(models) {
     const {
@@ -16,7 +18,9 @@ function applyAssociations(models) {
         RolePermission,
         TenantPasswordReset,
         TenantSession,
-        TenantEmailVerification
+        TenantEmailVerification,
+        Room,
+        Bed
     } = models;
 
     // Department <-> User associations
@@ -117,6 +121,19 @@ function applyAssociations(models) {
             foreignKey: 'userId'
         });
     }
+
+    // Room <-> Bed associations
+    if (Room && Bed) {
+        Room.hasMany(Bed, {
+            as: 'beds',
+            foreignKey: 'roomId'
+        });
+
+        Bed.belongsTo(Room, {
+            as: 'room',
+            foreignKey: 'roomId'
+        });
+    }
 }
 
 export function initModels(sequelize) {
@@ -128,7 +145,9 @@ export function initModels(sequelize) {
         RolePermission: initRolePermissionModel(sequelize),
         TenantPasswordReset: initTenantPasswordResetModel(sequelize),
         TenantSession: initTenantSessionModel(sequelize),
-        TenantEmailVerification: initTenantEmailVerificationModel(sequelize)
+        TenantEmailVerification: initTenantEmailVerificationModel(sequelize),
+        Room: initRoomModel(sequelize),
+        Bed: initBedModel(sequelize)
     };
 
     applyAssociations(models);

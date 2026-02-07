@@ -11,7 +11,8 @@
         "db:setup": "pnpm run db:create && pnpm run db:migrate && pnpm run db:seed",
         "db:migrate": "pnpm exec sequelize-cli db:migrate --env development",
         "db:seed": "pnpm exec sequelize-cli db:seed:all --env development",
-        "tenants:list": "node scripts/get-tenant-ids.mjs"
+        "tenants:list": "node scripts/get-tenant-ids.mjs",
+        "register-tenant": "node scripts/register-tenant.mjs"
     },
     "dependencies": {
         "@fastify/cors": "^8.4.1",
@@ -28,8 +29,9 @@
         "fastify-plugin": "^4.5.0",
         "ioredis": "^5.8.2",
         "jsonwebtoken": "^9.0.2",
-        "nodemailer": "^6.9.13",
+        "minimist": "^1.2.8",
         "node-fetch": "^3.3.2",
+        "nodemailer": "^6.9.13",
         "pg": "^8.16.3",
         "pg-hstore": "^2.3.4",
         "pino": "^10.1.0",

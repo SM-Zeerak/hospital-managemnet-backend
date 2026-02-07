@@ -4,6 +4,8 @@ import { registerDepartmentsModule } from './departments/index.js';
 import { registerRolesModule } from './roles/index.js';
 import { registerPermissionsModule } from './permissions/index.js';
 import { registerAdminModule } from './admin/index.js';
+import { registerBedsModule } from './beds/index.js';
+import { registerRoomsModule } from './rooms/index.js';
 
 export async function registerRoutes(app) {
     app.get(
@@ -53,6 +55,8 @@ export async function registerRoutes(app) {
         registerRolesModule,
         registerPermissionsModule,
         registerAdminModule,
+        registerBedsModule,
+        registerRoomsModule,
     ];
     for (const module of modules) {
         await app.register(module);

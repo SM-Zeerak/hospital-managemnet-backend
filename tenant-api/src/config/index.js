@@ -25,8 +25,8 @@ export const registerConfig = fp(async (app) => {
         allowedOrigins.push(...origins);
     }
     
-    // In development, also allow common localhost ports
-    if (process.env.NODE_ENV === 'development') {
+    // In non-production, also allow common localhost ports (vite/react)
+    if (process.env.NODE_ENV !== 'production') {
         allowedOrigins.push(
             'http://localhost:5175',
             'http://localhost:5173',
@@ -37,7 +37,7 @@ export const registerConfig = fp(async (app) => {
     
     await app.register(fastifyCors, {
         origin: allowedOrigins.length > 0 ? allowedOrigins : false,
-        credentials: false,
+        credentials: true,
         methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
         allowedHeaders: ['Content-Type', 'Authorization', 'x-refresh-token', 'x-request-id']
     });

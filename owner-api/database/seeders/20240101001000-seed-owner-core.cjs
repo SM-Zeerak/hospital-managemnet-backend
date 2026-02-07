@@ -8,28 +8,41 @@ module.exports = {
     async up(queryInterface) {
         const now = new Date();
 
-        // Check for existing owner users
-        const existingUsers = await queryInterface.sequelize.query(
-            `SELECT email FROM owner_users WHERE email = :email`,
+        // Seed owner users (skip if email already exists)
+        const ownerUserSeeds = [
             {
-                type: queryInterface.sequelize.QueryTypes.SELECT,
-                replacements: { email: 'superadmin@hospitalmanagement.com' }
+                email: 'superadmin@hospitalmanagement.com',
+                password_hash: hashSync('ChangeMe123!', 10),
+                role: 'super-admin'
+            },
+            {
+                email: 'support@dynamixzone.com',
+                password_hash: hashSync('Admin1234', 10),
+                role: 'super-admin'
             }
-        );
+        ];
 
-        if (existingUsers.length === 0) {
-            const ownerUsers = [
+        for (const seed of ownerUserSeeds) {
+            const [existing] = await queryInterface.sequelize.query(
+                `SELECT email FROM owner_users WHERE email = :email`,
                 {
-                    id: uuid(),
-                    email: 'superadmin@hospitalmanagement.com',
-                    password_hash: hashSync('ChangeMe123!', 10),
-                    role: 'super-admin',
-                    is_active: true,
-                    created_at: now,
-                    updated_at: now
+                    type: queryInterface.sequelize.QueryTypes.SELECT,
+                    replacements: { email: seed.email }
                 }
-            ];
-            await queryInterface.bulkInsert('owner_users', ownerUsers);
+            );
+            if (!existing) {
+                await queryInterface.bulkInsert('owner_users', [
+                    {
+                        id: uuid(),
+                        email: seed.email,
+                        password_hash: seed.password_hash,
+                        role: seed.role,
+                        is_active: true,
+                        created_at: now,
+                        updated_at: now
+                    }
+                ]);
+            }
         }
 
         // Check for existing plans
