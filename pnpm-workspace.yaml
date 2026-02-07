@@ -3,3 +3,4 @@ packages:
   - 'tenant-api'
   - 'school-api'
   - 'guards-api'
+  - 'tour-api'

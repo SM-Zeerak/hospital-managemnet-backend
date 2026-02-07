@@ -50,7 +50,7 @@ async function buildServer() {
     const app = fastify({
         logger: {
             base: {
-                'API': '@hospital-management-owner',
+                'API': '@dynamix-zone',
                 'Version': '0.1.0',
                 'Environment': env
             },

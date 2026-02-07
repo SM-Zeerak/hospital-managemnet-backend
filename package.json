@@ -6,7 +6,8 @@
         "owner-api",
         "tenant-api",
         "school-api",
-        "guards-api"
+        "guards-api",
+        "tour-api"
     ],
     "scripts": {
         "bootstrap": "pnpm install --workspace=owner-api && pnpm install --workspace=tenant-api",
