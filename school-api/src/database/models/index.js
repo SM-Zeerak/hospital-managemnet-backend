@@ -6,6 +6,7 @@ import { initRolePermissionModel } from './role-permission.js';
 import { initTenantPasswordResetModel } from './tenant-password-reset.js';
 import { initTenantSessionModel } from './tenant-session.js';
 import { initTenantEmailVerificationModel } from './tenant-email-verification.js';
+import { initStaffModel } from './staff.js';
 
 function applyAssociations(models) {
     const {
@@ -16,7 +17,8 @@ function applyAssociations(models) {
         RolePermission,
         TenantPasswordReset,
         TenantSession,
-        TenantEmailVerification
+        TenantEmailVerification,
+        Staff
     } = models;
 
     // Department <-> User associations
@@ -117,6 +119,42 @@ function applyAssociations(models) {
             foreignKey: 'userId'
         });
     }
+
+    // Staff associations
+    if (Staff) {
+        if (TenantUser) {
+            TenantUser.hasOne(Staff, {
+                as: 'staff',
+                foreignKey: 'userId'
+            });
+            Staff.belongsTo(TenantUser, {
+                as: 'user',
+                foreignKey: 'userId'
+            });
+        }
+
+        if (Department) {
+            Department.hasMany(Staff, {
+                as: 'staffList',
+                foreignKey: 'departmentId'
+            });
+            Staff.belongsTo(Department, {
+                as: 'department',
+                foreignKey: 'departmentId'
+            });
+        }
+
+        if (Role) {
+            Role.hasMany(Staff, {
+                as: 'staffList',
+                foreignKey: 'roleId'
+            });
+            Staff.belongsTo(Role, {
+                as: 'role',
+                foreignKey: 'roleId'
+            });
+        }
+    }
 }
 
 export function initModels(sequelize) {
@@ -128,7 +166,8 @@ export function initModels(sequelize) {
         RolePermission: initRolePermissionModel(sequelize),
         TenantPasswordReset: initTenantPasswordResetModel(sequelize),
         TenantSession: initTenantSessionModel(sequelize),
-        TenantEmailVerification: initTenantEmailVerificationModel(sequelize)
+        TenantEmailVerification: initTenantEmailVerificationModel(sequelize),
+        Staff: initStaffModel(sequelize)
     };
 
     applyAssociations(models);

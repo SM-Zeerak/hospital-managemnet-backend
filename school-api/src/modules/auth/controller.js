@@ -181,11 +181,24 @@ export function createRefreshController(app) {
     const fallbackTenantId = process.env.TENANT_ID || null;
 
     return async function refreshController(request) {
-        if (!request.body || typeof request.body !== 'object') {
-            throw app.httpErrors.badRequest('Request body is required');
+        // Support token in body or headers (for legacy/flexibility)
+        let refreshToken = request.body?.refreshToken;
+
+        if (!refreshToken) {
+            const xRefreshToken = request.headers['x-refresh-token'] || request.headers['X-Refresh-Token'] || '';
+            refreshToken = xRefreshToken.trim();
         }
 
-        const { refreshToken } = refreshSchema.parse(request.body);
+        if (!refreshToken) {
+            const authorization = request.headers.authorization || '';
+            if (authorization.startsWith('Bearer ')) {
+                refreshToken = authorization.replace(/^Bearer\s+/i, '').trim();
+            }
+        }
+
+        if (!refreshToken) {
+            throw app.httpErrors.badRequest('Refresh token required (in body or x-refresh-token header)');
+        }
 
         try {
             const decoded = verifyRefreshToken(app, refreshToken);
@@ -614,6 +627,30 @@ export function createVerifyEmailController(app) {
             message: 'Email verified successfully',
             data: {
                 user: result.user
+            }
+        };
+    };
+}
+export function createCheckController(app) {
+    return async function checkController(request) {
+        if (!request.user) {
+            throw app.httpErrors.unauthorized('Not authenticated');
+        }
+
+        const user = await fetchActiveTenantUser(app.db.models, request.user.email);
+        if (!user) {
+            throw app.httpErrors.unauthorized('Account disabled or invalid');
+        }
+
+        return {
+            ok: true,
+            status: 200,
+            invokedMethod: 'Check Auth',
+            responseTime: request.responseTime,
+            timestamp: new Date().toISOString(),
+            message: 'Authenticated',
+            data: {
+                user: presentTenantUser(user)
             }
         };
     };

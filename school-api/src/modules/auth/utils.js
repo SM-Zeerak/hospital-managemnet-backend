@@ -52,22 +52,22 @@ export function buildAuthPayload(source, tenantId) {
 export function signTokens(app, payload) {
     const config = app.jwtConfig || {};
     const { accessSecret, refreshSecret, accessTtl, refreshTtl } = config;
-    
+
     if (!accessSecret || !refreshSecret) {
         throw new Error('JWT secrets not configured. accessSecret and refreshSecret are required.');
     }
-    
+
     if (!accessTtl || !refreshTtl) {
         throw new Error('JWT TTL not configured. accessTtl and refreshTtl are required.');
     }
-    
+
     // Use jsonwebtoken directly to support different secrets for access and refresh tokens
     const accessToken = jwt.sign(payload, accessSecret, { expiresIn: accessTtl });
     const refreshToken = jwt.sign(payload, refreshSecret, { expiresIn: refreshTtl });
-    
+
     const accessDecoded = jwt.decode(accessToken);
     const refreshDecoded = jwt.decode(refreshToken);
-    
+
     return {
         accessToken,
         refreshToken,
@@ -149,17 +149,17 @@ export function computeTenantUserRolesAndPermissions(user) {
             permissions: user.permissions
         };
     }
-    
+
     // Otherwise, compute from associations
     const roles = user.roleEntities?.map(r => r.name) || [];
     const permissions = new Set();
-    
+
     user.roleEntities?.forEach(role => {
         role.permissionEntities?.forEach(perm => {
             permissions.add(perm.key);
         });
     });
-    
+
     return {
         roles,
         permissions: Array.from(permissions)
@@ -188,10 +188,16 @@ export function sanitizeTenantUser(user) {
  */
 export function presentTenantUser(user) {
     if (!user) return null;
-    
+
+    // Extract names before sanitization
     const { roles, permissions } = computeTenantUserRolesAndPermissions(user);
     const userObj = sanitizeTenantUser(user);
-    
+
+    // Explicitly remove complex association objects that React cannot render
+    delete userObj.roleEntities;
+    delete userObj.department;
+    delete userObj.role;
+
     return {
         ...userObj,
         roles,

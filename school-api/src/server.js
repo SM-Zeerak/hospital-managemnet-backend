@@ -1,4 +1,5 @@
 import fastify from 'fastify';
+import multipart from '@fastify/multipart';
 import { registerConfig } from './config/index.js';
 import { registerCore } from './core/index.js';
 import { registerRoutes } from './modules/index.js';
@@ -33,6 +34,17 @@ async function buildServer() {
         await app.register(registerConfig);
     } catch (error) {
         console.error('registerConfig failed', error);
+        throw error;
+    }
+
+    try {
+        await app.register(multipart, {
+            limits: {
+                fileSize: 10 * 1024 * 1024 // 10MB
+            }
+        });
+    } catch (error) {
+        console.error('registerMultipart failed', error);
         throw error;
     }
 

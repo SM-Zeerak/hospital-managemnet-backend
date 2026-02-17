@@ -20,7 +20,7 @@ export function registerDepartmentRoutes(app) {
     const requireUpdate = app.permissionGuard('departments.update');
     const requireDelete = app.permissionGuard('departments.delete');
 
-    app.get('/tenant/departments', {
+    app.get('/school/departments', {
         schema: {
             tags: ['Departments'],
             summary: 'List departments',
@@ -30,7 +30,7 @@ export function registerDepartmentRoutes(app) {
         preHandler: [authGuard, requireRead]
     }, listController);
 
-    app.post('/tenant/departments', {
+    app.post('/school/departments', {
         schema: {
             tags: ['Departments'],
             summary: 'Create department',
@@ -48,7 +48,7 @@ export function registerDepartmentRoutes(app) {
         preHandler: [authGuard, requireAdmin, requireCreate]
     }, createController);
 
-    app.get('/tenant/departments/:id', {
+    app.get('/school/departments/:id', {
         schema: {
             tags: ['Departments'],
             summary: 'Get department by ID',
@@ -65,7 +65,7 @@ export function registerDepartmentRoutes(app) {
         preHandler: [authGuard, requireRead]
     }, getController);
 
-    app.patch('/tenant/departments/:id', {
+    app.patch('/school/departments/:id', {
         schema: {
             tags: ['Departments'],
             summary: 'Update department',
@@ -89,7 +89,7 @@ export function registerDepartmentRoutes(app) {
         preHandler: [authGuard, requireUpdate]
     }, updateController);
 
-    app.delete('/tenant/departments/:id', {
+    app.delete('/school/departments/:id', {
         schema: {
             tags: ['Departments'],
             summary: 'Delete department',

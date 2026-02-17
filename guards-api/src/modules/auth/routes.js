@@ -93,7 +93,7 @@ export function registerAuthRoutes(app) {
         }
     }, loginController);
 
-    app.post('/tenant/auth/refresh', {
+    app.post('/tenant/auth/refresh-token', {
         schema: {
             tags: ['Authentication'],
             summary: 'Refresh token',

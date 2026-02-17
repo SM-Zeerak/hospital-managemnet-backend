@@ -7,7 +7,8 @@ import {
     createResetPasswordController,
     createRequestEmailVerificationController,
     createResendEmailVerificationController,
-    createVerifyEmailController
+    createVerifyEmailController,
+    createCheckController
 } from './controller.js';
 
 export function registerAuthRoutes(app) {
@@ -22,8 +23,40 @@ export function registerAuthRoutes(app) {
     const requestEmailVerificationController = createRequestEmailVerificationController(app);
     const resendEmailVerificationController = createResendEmailVerificationController(app);
     const verifyEmailController = createVerifyEmailController(app);
+    const checkController = createCheckController(app);
 
-    app.post('/tenant/auth/login', {
+    // Legacy fallback for refresh-token (without school prefix)
+    app.post('/auth/refresh-token', refreshController);
+
+    app.get('/school/auth/check', {
+        onRequest: [app.authGuard],
+        schema: {
+            tags: ['Authentication'],
+            summary: 'Check session',
+            description: 'Get current user session information',
+            security: [{ bearerAuth: [] }],
+            response: {
+                200: {
+                    type: 'object',
+                    properties: {
+                        ok: { type: 'boolean' },
+                        status: { type: 'number' },
+                        invokedMethod: { type: 'string' },
+                        timestamp: { type: 'string' },
+                        message: { type: 'string' },
+                        data: {
+                            type: 'object',
+                            properties: {
+                                user: { type: 'object', additionalProperties: true }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }, checkController);
+
+    app.post('/school/auth/login', {
         schema: {
             tags: ['Authentication'],
             summary: 'Login',
@@ -93,7 +126,7 @@ export function registerAuthRoutes(app) {
         }
     }, loginController);
 
-    app.post('/tenant/auth/refresh', {
+    app.post('/school/auth/refresh-token', {
         schema: {
             tags: ['Authentication'],
             summary: 'Refresh token',
@@ -136,7 +169,7 @@ export function registerAuthRoutes(app) {
         }
     }, refreshController);
 
-    app.post('/tenant/auth/logout', {
+    app.post('/school/auth/logout', {
         schema: {
             tags: ['Authentication'],
             summary: 'Logout',
@@ -170,7 +203,7 @@ export function registerAuthRoutes(app) {
         }
     }, logoutController);
 
-    app.post('/tenant/auth/request-reset', {
+    app.post('/school/auth/request-reset', {
         schema: {
             tags: ['Authentication'],
             summary: 'Request password reset',
@@ -208,7 +241,7 @@ export function registerAuthRoutes(app) {
         }
     }, requestResetController);
 
-    app.post('/tenant/auth/request-reset/resend', {
+    app.post('/school/auth/request-reset/resend', {
         schema: {
             tags: ['Authentication'],
             summary: 'Resend password reset',
@@ -246,7 +279,7 @@ export function registerAuthRoutes(app) {
         }
     }, resendResetController);
 
-    app.post('/tenant/auth/reset', {
+    app.post('/school/auth/reset', {
         schema: {
             tags: ['Authentication'],
             summary: 'Reset password',
@@ -283,7 +316,7 @@ export function registerAuthRoutes(app) {
         }
     }, resetPasswordController);
 
-    app.post('/tenant/auth/verify-email/request', {
+    app.post('/school/auth/verify-email/request', {
         schema: {
             tags: ['Authentication'],
             summary: 'Request email verification',
@@ -315,7 +348,7 @@ export function registerAuthRoutes(app) {
         }
     }, requestEmailVerificationController);
 
-    app.post('/tenant/auth/verify-email/resend', {
+    app.post('/school/auth/verify-email/resend', {
         schema: {
             tags: ['Authentication'],
             summary: 'Resend email verification',
@@ -347,7 +380,7 @@ export function registerAuthRoutes(app) {
         }
     }, resendEmailVerificationController);
 
-    app.post('/tenant/auth/verify-email', {
+    app.post('/school/auth/verify-email', {
         schema: {
             tags: ['Authentication'],
             summary: 'Verify email',

@@ -8,7 +8,30 @@ export const createUserSchema = z.object({
     departmentId: z.uuid().nullable().optional(),
     roleIds: z.array(z.uuid()).default([]),
     commisionType: z.enum(['percentage', 'fixed']).optional(),
-    commisionValue: z.number().optional().default(0)
+    commisionValue: z.number().optional().default(0),
+    staff: z.object({
+        personalInfo: z.object({
+            phone: z.string().optional(),
+            address: z.string().optional(),
+            gender: z.enum(['male', 'female', 'other']).optional(),
+            dob: z.string().optional(),
+            emergencyContact: z.string().optional()
+        }).optional(),
+        qualificationInfo: z.array(z.object({
+            degree: z.string(),
+            institution: z.string(),
+            year: z.number().optional()
+        })).optional(),
+        experienceInfo: z.array(z.object({
+            company: z.string(),
+            position: z.string(),
+            duration: z.string(),
+            description: z.string().optional()
+        })).optional(),
+        salary: z.number().optional(),
+        rfidCardNumber: z.string().optional(),
+        imageUrl: z.string().optional()
+    }).optional()
 });
 
 export const updateUserSchema = z.object({
@@ -20,7 +43,30 @@ export const updateUserSchema = z.object({
     roleIds: z.array(z.uuid()).optional(),
     status: z.enum(['active', 'suspended']).optional(),
     commisionType: z.enum(['percentage', 'fixed']).optional(),
-    commisionValue: z.number().optional().default(0)
+    commisionValue: z.number().optional().default(0),
+    staff: z.object({
+        personalInfo: z.object({
+            phone: z.string().optional(),
+            address: z.string().optional(),
+            gender: z.enum(['male', 'female', 'other']).optional(),
+            dob: z.string().optional(),
+            emergencyContact: z.string().optional()
+        }).optional(),
+        qualificationInfo: z.array(z.object({
+            degree: z.string(),
+            institution: z.string(),
+            year: z.number().optional()
+        })).optional(),
+        experienceInfo: z.array(z.object({
+            company: z.string(),
+            position: z.string(),
+            duration: z.string(),
+            description: z.string().optional()
+        })).optional(),
+        salary: z.number().optional(),
+        rfidCardNumber: z.string().optional(),
+        imageUrl: z.string().optional()
+    }).optional()
 });
 
 export const idParamSchema = z.object({

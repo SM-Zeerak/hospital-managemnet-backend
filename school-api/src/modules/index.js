@@ -52,7 +52,7 @@ export async function registerRoutes(app) {
         registerDepartmentsModule,
         registerRolesModule,
         registerPermissionsModule,
-        registerAdminModule,
+        registerAdminModule
     ];
     for (const module of modules) {
         await app.register(module);

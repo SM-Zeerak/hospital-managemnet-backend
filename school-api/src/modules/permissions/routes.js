@@ -20,7 +20,7 @@ export function registerPermissionRoutes(app) {
     const requireUpdate = app.permissionGuard('permissions.update');
     const requireDelete = app.permissionGuard('permissions.delete');
 
-    app.get('/tenant/permissions', {
+    app.get('/school/permissions', {
         schema: {
             tags: ['Permissions'],
             summary: 'List permissions',
@@ -30,7 +30,7 @@ export function registerPermissionRoutes(app) {
         preHandler: [authGuard, requireRead]
     }, listController);
 
-    app.post('/tenant/permissions', {
+    app.post('/school/permissions', {
         schema: {
             tags: ['Permissions'],
             summary: 'Create permission',
@@ -49,7 +49,7 @@ export function registerPermissionRoutes(app) {
         preHandler: [authGuard, requireAdmin, requireCreate]
     }, createController);
 
-    app.get('/tenant/permissions/:id', {
+    app.get('/school/permissions/:id', {
         schema: {
             tags: ['Permissions'],
             summary: 'Get permission by ID',
@@ -66,7 +66,7 @@ export function registerPermissionRoutes(app) {
         preHandler: [authGuard, requireRead]
     }, getController);
 
-    app.patch('/tenant/permissions/:id', {
+    app.patch('/school/permissions/:id', {
         schema: {
             tags: ['Permissions'],
             summary: 'Update permission',
@@ -90,7 +90,7 @@ export function registerPermissionRoutes(app) {
         preHandler: [authGuard, requireUpdate]
     }, updateController);
 
-    app.delete('/tenant/permissions/:id', {
+    app.delete('/school/permissions/:id', {
         schema: {
             tags: ['Permissions'],
             summary: 'Delete permission',

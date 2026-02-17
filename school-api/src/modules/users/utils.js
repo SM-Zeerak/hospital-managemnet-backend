@@ -22,17 +22,17 @@ const ROLE_HIERARCHY = {
  */
 export function getUserHighestRoleLevel(user) {
     let roles = [];
-    
+
     if (user.roleEntities && Array.isArray(user.roleEntities)) {
         roles = user.roleEntities.map(r => r.name);
     } else if (user.roles && Array.isArray(user.roles)) {
         roles = user.roles;
     }
-    
+
     if (roles.length === 0) {
         return 0;
     }
-    
+
     const levels = roles.map(roleName => ROLE_HIERARCHY[roleName] || 0);
     return Math.max(...levels);
 }
@@ -55,13 +55,13 @@ export function hasHigherRole(user1, user2) {
 export function computeUserRolesAndPermissions(user) {
     const roles = user.roleEntities?.map(r => r.name) || [];
     const permissions = new Set();
-    
+
     user.roleEntities?.forEach(role => {
         role.permissionEntities?.forEach(perm => {
             permissions.add(perm.key);
         });
     });
-    
+
     return {
         roles,
         permissions: Array.from(permissions)
@@ -75,22 +75,32 @@ export function computeUserRolesAndPermissions(user) {
  */
 export function presentUser(user) {
     if (!user) return null;
-    
+
     const { roles, permissions } = computeUserRolesAndPermissions(user);
-    
+
     const userObj = user.toJSON ? user.toJSON() : user;
-    
+
     // Remove sensitive fields
     delete userObj.passwordHash;
     delete userObj.password;
-    
+
+    // Remove association objects that React cannot render
+    delete userObj.roleEntities;
+    delete userObj.department;
+    delete userObj.role;
+    delete userObj.departmentEntity;
+
     const commission = userObj.commission ? {
         commissionType: userObj.commission.commissionType,
         commissionValue: parseFloat(userObj.commission.commissionValue) || 0
     } : null;
-    
+
     delete userObj.commission;
-    
+
+    if (userObj.staff) {
+        userObj.staff.salary = parseFloat(userObj.staff.salary) || 0;
+    }
+
     return {
         ...userObj,
         roles,

@@ -12,7 +12,8 @@ import {
     createListInvitesController,
     createResendInviteController,
     createCancelInviteController,
-    createAcceptInviteController
+    createAcceptInviteController,
+    createUploadUserImageController
 } from './controller.js';
 
 export function registerUserRoutes(app) {
@@ -25,7 +26,7 @@ export function registerUserRoutes(app) {
     const requireAdminOrSubAdmin = app.roleGuard(['admin', 'sub-admin']);
 
     // User Statistics
-    app.get('/tenant/users/stats', {
+    app.get('/school/users/stats', {
         schema: {
             tags: ['Users'],
             summary: 'Get user statistics',
@@ -46,7 +47,7 @@ export function registerUserRoutes(app) {
     }, createGetUserStatsController(app));
 
     // User CRUD
-    app.get('/tenant/users', {
+    app.get('/school/users', {
         schema: {
             tags: ['Users'],
             summary: 'List users',
@@ -67,34 +68,135 @@ export function registerUserRoutes(app) {
                     dateFrom: { type: 'string', format: 'date-time' },
                     dateTo: { type: 'string', format: 'date-time' }
                 }
+            },
+            response: {
+                200: {
+                    type: 'object',
+                    properties: {
+                        ok: { type: 'boolean' },
+                        data: {
+                            type: 'array',
+                            items: {
+                                type: 'object',
+                                properties: {
+                                    id: { type: 'string', format: 'uuid' },
+                                    email: { type: 'string' },
+                                    firstName: { type: 'string' },
+                                    lastName: { type: 'string' },
+                                    status: { type: 'string' },
+                                    departmentId: { type: 'string', format: 'uuid', nullable: true },
+                                    roles: { type: 'array', items: { type: 'string' } },
+                                    permissions: { type: 'array', items: { type: 'string' } },
+                                    staff: { type: 'object', nullable: true, additionalProperties: true }
+                                }
+                            }
+                        },
+                        pagination: { type: 'object', additionalProperties: true },
+                        stats: { type: 'object', additionalProperties: true }
+                    }
+                }
             }
         },
         preHandler: [authGuard, requireRead]
     }, createListUsersController(app));
 
-    app.post('/tenant/users', {
+    app.post('/school/users/upload-image', {
+        schema: {
+            tags: ['Users'],
+            summary: 'Upload user/staff image',
+            description: 'Upload an image for a user/staff member to Cloudinary',
+            security: [{ bearerAuth: [] }],
+            consumes: ['multipart/form-data'],
+            response: {
+                200: {
+                    type: 'object',
+                    properties: {
+                        ok: { type: 'boolean' },
+                        data: {
+                            type: 'object',
+                            properties: {
+                                imageUrl: { type: 'string' }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        preHandler: [authGuard, requireUpdate]
+    }, createUploadUserImageController(app));
+
+    app.post('/school/users', {
         schema: {
             tags: ['Users'],
             summary: 'Create user',
-            description: 'Create a new user in the hospital',
+            description: 'Create a new user in the hospital. Supports multipart/form-data with "data" (JSON string) and "file" (image).',
             security: [{ bearerAuth: [] }],
+            consumes: ['multipart/form-data'],
             body: {
                 type: 'object',
-                required: ['email', 'password', 'firstName', 'lastName'],
                 properties: {
-                    email: { type: 'string', format: 'email' },
-                    password: { type: 'string', minLength: 8 },
-                    firstName: { type: 'string' },
-                    lastName: { type: 'string' },
-                    departmentId: { type: 'string', format: 'uuid' },
-                    roleIds: { type: 'array', items: { type: 'string', format: 'uuid' } }
+                    data: {
+                        type: 'object',
+                        description: 'User details (JSON string if multipart)',
+                        required: ['email', 'password', 'firstName', 'lastName'],
+                        properties: {
+                            email: { type: 'string', format: 'email' },
+                            password: { type: 'string', minLength: 8 },
+                            firstName: { type: 'string' },
+                            lastName: { type: 'string' },
+                            departmentId: { type: 'string', format: 'uuid' },
+                            roleIds: { type: 'array', items: { type: 'string', format: 'uuid' } },
+                            staff: {
+                                type: 'object',
+                                properties: {
+                                    personalInfo: {
+                                        type: 'object',
+                                        properties: {
+                                            phone: { type: 'string' },
+                                            address: { type: 'string' },
+                                            gender: { type: 'string', enum: ['male', 'female', 'other'] },
+                                            dob: { type: 'string', format: 'date' },
+                                            emergencyContact: { type: 'string' }
+                                        }
+                                    },
+                                    qualificationInfo: {
+                                        type: 'array',
+                                        items: {
+                                            type: 'object',
+                                            properties: {
+                                                degree: { type: 'string' },
+                                                institution: { type: 'string' },
+                                                year: { type: 'number' }
+                                            }
+                                        }
+                                    },
+                                    experienceInfo: {
+                                        type: 'array',
+                                        items: {
+                                            type: 'object',
+                                            properties: {
+                                                company: { type: 'string' },
+                                                position: { type: 'string' },
+                                                duration: { type: 'string' },
+                                                description: { type: 'string' }
+                                            }
+                                        }
+                                    },
+                                    salary: { type: 'number' },
+                                    rfidCardNumber: { type: 'string' },
+                                    imageUrl: { type: 'string' }
+                                }
+                            }
+                        }
+                    },
+                    file: { type: 'string', format: 'binary', description: 'Staff image file' }
                 }
             }
         },
         preHandler: [authGuard, requireAdminOrSubAdmin, requireCreate]
     }, createCreateUserController(app));
 
-    app.get('/tenant/users/:id', {
+    app.get('/school/users/:id', {
         schema: {
             tags: ['Users'],
             summary: 'Get user by ID',
@@ -106,17 +208,36 @@ export function registerUserRoutes(app) {
                 properties: {
                     id: { type: 'string', format: 'uuid' }
                 }
+            },
+            response: {
+                200: {
+                    type: 'object',
+                    properties: {
+                        ok: { type: 'boolean' },
+                        id: { type: 'string', format: 'uuid' },
+                        email: { type: 'string' },
+                        firstName: { type: 'string' },
+                        lastName: { type: 'string' },
+                        status: { type: 'string' },
+                        departmentId: { type: 'string', format: 'uuid', nullable: true },
+                        roles: { type: 'array', items: { type: 'string' } },
+                        permissions: { type: 'array', items: { type: 'string' } },
+                        staff: { type: 'object', nullable: true, additionalProperties: true },
+                        stats: { type: 'object', additionalProperties: true }
+                    }
+                }
             }
         },
         preHandler: [authGuard, requireRead]
     }, createGetUserController(app));
 
-    app.patch('/tenant/users/:id', {
+    app.patch('/school/users/:id', {
         schema: {
             tags: ['Users'],
             summary: 'Update user',
-            description: 'Update user information',
+            description: 'Update user information. Supports multipart/form-data with "data" (JSON string) and "file" (image).',
             security: [{ bearerAuth: [] }],
+            consumes: ['multipart/form-data'],
             params: {
                 type: 'object',
                 required: ['id'],
@@ -127,19 +248,67 @@ export function registerUserRoutes(app) {
             body: {
                 type: 'object',
                 properties: {
-                    email: { type: 'string', format: 'email' },
-                    firstName: { type: 'string' },
-                    lastName: { type: 'string' },
-                    departmentId: { type: 'string', format: 'uuid' },
-                    roleIds: { type: 'array', items: { type: 'string', format: 'uuid' } },
-                    status: { type: 'string', enum: ['active', 'suspended'] }
+                    data: {
+                        type: 'object',
+                        description: 'User details (JSON string if multipart)',
+                        properties: {
+                            email: { type: 'string', format: 'email' },
+                            firstName: { type: 'string' },
+                            lastName: { type: 'string' },
+                            departmentId: { type: 'string', format: 'uuid' },
+                            roleIds: { type: 'array', items: { type: 'string', format: 'uuid' } },
+                            status: { type: 'string', enum: ['active', 'suspended'] },
+                            staff: {
+                                type: 'object',
+                                properties: {
+                                    personalInfo: {
+                                        type: 'object',
+                                        properties: {
+                                            phone: { type: 'string' },
+                                            address: { type: 'string' },
+                                            gender: { type: 'string', enum: ['male', 'female', 'other'] },
+                                            dob: { type: 'string', format: 'date' },
+                                            emergencyContact: { type: 'string' }
+                                        }
+                                    },
+                                    qualificationInfo: {
+                                        type: 'array',
+                                        items: {
+                                            type: 'object',
+                                            properties: {
+                                                degree: { type: 'string' },
+                                                institution: { type: 'string' },
+                                                year: { type: 'number' }
+                                            }
+                                        }
+                                    },
+                                    experienceInfo: {
+                                        type: 'array',
+                                        items: {
+                                            type: 'object',
+                                            properties: {
+                                                company: { type: 'string' },
+                                                position: { type: 'string' },
+                                                duration: { type: 'string' },
+                                                description: { type: 'string' }
+                                            }
+                                        }
+                                    },
+                                    salary: { type: 'number' },
+                                    rfidCardNumber: { type: 'string' },
+                                    imageUrl: { type: 'string' }
+                                }
+                            }
+                        }
+                    },
+                    file: { type: 'string', format: 'binary', description: 'Staff image file' }
                 }
             }
         },
         preHandler: [authGuard, requireUpdate]
     }, createUpdateUserController(app));
 
-    app.post('/tenant/users/:id/activate', {
+    app.post('/school/users/:id/activate', {
         schema: {
             tags: ['Users'],
             summary: 'Activate user',
@@ -156,7 +325,7 @@ export function registerUserRoutes(app) {
         preHandler: [authGuard, requireAdminOrSubAdmin, requireUpdate]
     }, createActivateUserController(app));
 
-    app.post('/tenant/users/:id/suspend', {
+    app.post('/school/users/:id/suspend', {
         schema: {
             tags: ['Users'],
             summary: 'Suspend user',
@@ -173,7 +342,7 @@ export function registerUserRoutes(app) {
         preHandler: [authGuard, requireAdminOrSubAdmin, requireUpdate]
     }, createSuspendUserController(app));
 
-    app.delete('/tenant/users/:id', {
+    app.delete('/school/users/:id', {
         schema: {
             tags: ['Users'],
             summary: 'Delete user',
@@ -191,7 +360,7 @@ export function registerUserRoutes(app) {
     }, createDeleteUserController(app));
 
     // Bulk Operations
-    app.post('/tenant/users/bulk', {
+    app.post('/school/users/bulk', {
         schema: {
             tags: ['Users'],
             summary: 'Bulk user operations',
@@ -210,7 +379,7 @@ export function registerUserRoutes(app) {
     }, createBulkOperationController(app));
 
     // User Invites
-    app.post('/tenant/users/invites', {
+    app.post('/school/users/invites', {
         schema: {
             tags: ['Users'],
             summary: 'Create user invite',
@@ -224,14 +393,55 @@ export function registerUserRoutes(app) {
                     firstName: { type: 'string' },
                     lastName: { type: 'string' },
                     departmentId: { type: 'string', format: 'uuid' },
-                    roleIds: { type: 'array', items: { type: 'string', format: 'uuid' } }
+                    roleIds: { type: 'array', items: { type: 'string', format: 'uuid' } },
+                    staff: {
+                        type: 'object',
+                        properties: {
+                            personalInfo: {
+                                type: 'object',
+                                properties: {
+                                    phone: { type: 'string' },
+                                    address: { type: 'string' },
+                                    gender: { type: 'string', enum: ['male', 'female', 'other'] },
+                                    dob: { type: 'string', format: 'date' },
+                                    emergencyContact: { type: 'string' }
+                                }
+                            },
+                            qualificationInfo: {
+                                type: 'array',
+                                items: {
+                                    type: 'object',
+                                    properties: {
+                                        degree: { type: 'string' },
+                                        institution: { type: 'string' },
+                                        year: { type: 'number' }
+                                    }
+                                }
+                            },
+                            experienceInfo: {
+                                type: 'array',
+                                items: {
+                                    type: 'object',
+                                    properties: {
+                                        company: { type: 'string' },
+                                        position: { type: 'string' },
+                                        duration: { type: 'string' },
+                                        description: { type: 'string' }
+                                    }
+                                }
+                            },
+                            salary: { type: 'number' },
+                            rfidCardNumber: { type: 'string' },
+                            imageUrl: { type: 'string' }
+                        }
+                    }
                 }
             }
         },
         preHandler: [authGuard, requireAdminOrSubAdmin, requireCreate]
     }, createCreateInviteController(app));
 
-    app.get('/tenant/users/invites', {
+    app.get('/school/users/invites', {
         schema: {
             tags: ['Users'],
             summary: 'List user invites',
@@ -250,7 +460,7 @@ export function registerUserRoutes(app) {
         preHandler: [authGuard, requireRead]
     }, createListInvitesController(app));
 
-    app.post('/tenant/users/invites/:inviteId/resend', {
+    app.post('/school/users/invites/:inviteId/resend', {
         schema: {
             tags: ['Users'],
             summary: 'Resend user invite',
@@ -267,7 +477,7 @@ export function registerUserRoutes(app) {
         preHandler: [authGuard, requireAdminOrSubAdmin, requireCreate]
     }, createResendInviteController(app));
 
-    app.post('/tenant/users/invites/:inviteId/cancel', {
+    app.post('/school/users/invites/:inviteId/cancel', {
         schema: {
             tags: ['Users'],
             summary: 'Cancel user invite',
@@ -285,7 +495,7 @@ export function registerUserRoutes(app) {
     }, createCancelInviteController(app));
 
     // Public endpoint for accepting invites (no auth required)
-    app.post('/tenant/users/invites/accept', {
+    app.post('/school/users/invites/accept', {
         schema: {
             tags: ['Users'],
             summary: 'Accept user invite',
