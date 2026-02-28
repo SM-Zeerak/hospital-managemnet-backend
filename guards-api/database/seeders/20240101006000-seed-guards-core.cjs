@@ -68,7 +68,11 @@ module.exports = {
             ['patrols.read', 'View patrol logs'],
             ['patrols.create', 'Create patrol logs'],
             ['incidents.read', 'View incidents'],
-            ['incidents.create', 'Report incidents']
+            ['incidents.create', 'Report incidents'],
+            ['guards.read', 'View guards'],
+            ['guards.create', 'Create guards'],
+            ['guards.update', 'Update guards'],
+            ['guards.delete', 'Delete guards']
         ];
 
         // insert permissions logic similar to above...
@@ -109,7 +113,8 @@ module.exports = {
         }, {});
         const allPermissionKeys = allPermissions.map(p => p.key);
 
-        // Guard Roles
+        // Guard Roles (admin and cso get all permissions including guards.read/create/update/delete)
+        const guardsPermissionKeys = ['guards.read', 'guards.create', 'guards.update', 'guards.delete'];
         const roleDefs = [
             {
                 name: 'admin',
@@ -209,6 +214,27 @@ module.exports = {
 
         if (rolePermissionMap.length > 0) {
             await queryInterface.bulkInsert('role_permission_map', rolePermissionMap);
+        }
+
+        // Ensure admin role has guards permissions (for existing admins created before guards module was added)
+        const adminRoleIdForGuards = roleIdByName['admin'];
+        if (adminRoleIdForGuards) {
+            for (const key of guardsPermissionKeys) {
+                const permId = permissionIdByKey[key];
+                if (permId) {
+                    const uniqueKey = `${adminRoleIdForGuards}:${permId}`;
+                    if (!existingRolePermSet.has(uniqueKey)) {
+                        await queryInterface.bulkInsert('role_permission_map', [{
+                            id: uuid(),
+                            role_id: adminRoleIdForGuards,
+                            permission_id: permId,
+                            created_at: now,
+                            updated_at: now
+                        }]);
+                        existingRolePermSet.add(uniqueKey);
+                    }
+                }
+            }
         }
 
         // Default Admin

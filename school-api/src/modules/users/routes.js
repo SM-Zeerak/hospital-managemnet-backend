@@ -131,67 +131,7 @@ export function registerUserRoutes(app) {
             summary: 'Create user',
             description: 'Create a new user in the hospital. Supports multipart/form-data with "data" (JSON string) and "file" (image).',
             security: [{ bearerAuth: [] }],
-            consumes: ['multipart/form-data'],
-            body: {
-                type: 'object',
-                properties: {
-                    data: {
-                        type: 'object',
-                        description: 'User details (JSON string if multipart)',
-                        required: ['email', 'password', 'firstName', 'lastName'],
-                        properties: {
-                            email: { type: 'string', format: 'email' },
-                            password: { type: 'string', minLength: 8 },
-                            firstName: { type: 'string' },
-                            lastName: { type: 'string' },
-                            departmentId: { type: 'string', format: 'uuid' },
-                            roleIds: { type: 'array', items: { type: 'string', format: 'uuid' } },
-                            staff: {
-                                type: 'object',
-                                properties: {
-                                    personalInfo: {
-                                        type: 'object',
-                                        properties: {
-                                            phone: { type: 'string' },
-                                            address: { type: 'string' },
-                                            gender: { type: 'string', enum: ['male', 'female', 'other'] },
-                                            dob: { type: 'string', format: 'date' },
-                                            emergencyContact: { type: 'string' }
-                                        }
-                                    },
-                                    qualificationInfo: {
-                                        type: 'array',
-                                        items: {
-                                            type: 'object',
-                                            properties: {
-                                                degree: { type: 'string' },
-                                                institution: { type: 'string' },
-                                                year: { type: 'number' }
-                                            }
-                                        }
-                                    },
-                                    experienceInfo: {
-                                        type: 'array',
-                                        items: {
-                                            type: 'object',
-                                            properties: {
-                                                company: { type: 'string' },
-                                                position: { type: 'string' },
-                                                duration: { type: 'string' },
-                                                description: { type: 'string' }
-                                            }
-                                        }
-                                    },
-                                    salary: { type: 'number' },
-                                    rfidCardNumber: { type: 'string' },
-                                    imageUrl: { type: 'string' }
-                                }
-                            }
-                        }
-                    },
-                    file: { type: 'string', format: 'binary', description: 'Staff image file' }
-                }
-            }
+            consumes: ['multipart/form-data']
         },
         preHandler: [authGuard, requireAdminOrSubAdmin, requireCreate]
     }, createCreateUserController(app));
@@ -243,65 +183,6 @@ export function registerUserRoutes(app) {
                 required: ['id'],
                 properties: {
                     id: { type: 'string', format: 'uuid' }
-                }
-            },
-            body: {
-                type: 'object',
-                properties: {
-                    data: {
-                        type: 'object',
-                        description: 'User details (JSON string if multipart)',
-                        properties: {
-                            email: { type: 'string', format: 'email' },
-                            firstName: { type: 'string' },
-                            lastName: { type: 'string' },
-                            departmentId: { type: 'string', format: 'uuid' },
-                            roleIds: { type: 'array', items: { type: 'string', format: 'uuid' } },
-                            status: { type: 'string', enum: ['active', 'suspended'] },
-                            staff: {
-                                type: 'object',
-                                properties: {
-                                    personalInfo: {
-                                        type: 'object',
-                                        properties: {
-                                            phone: { type: 'string' },
-                                            address: { type: 'string' },
-                                            gender: { type: 'string', enum: ['male', 'female', 'other'] },
-                                            dob: { type: 'string', format: 'date' },
-                                            emergencyContact: { type: 'string' }
-                                        }
-                                    },
-                                    qualificationInfo: {
-                                        type: 'array',
-                                        items: {
-                                            type: 'object',
-                                            properties: {
-                                                degree: { type: 'string' },
-                                                institution: { type: 'string' },
-                                                year: { type: 'number' }
-                                            }
-                                        }
-                                    },
-                                    experienceInfo: {
-                                        type: 'array',
-                                        items: {
-                                            type: 'object',
-                                            properties: {
-                                                company: { type: 'string' },
-                                                position: { type: 'string' },
-                                                duration: { type: 'string' },
-                                                description: { type: 'string' }
-                                            }
-                                        }
-                                    },
-                                    salary: { type: 'number' },
-                                    rfidCardNumber: { type: 'string' },
-                                    imageUrl: { type: 'string' }
-                                }
-                            }
-                        }
-                    },
-                    file: { type: 'string', format: 'binary', description: 'Staff image file' }
                 }
             }
         },

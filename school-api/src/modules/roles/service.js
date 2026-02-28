@@ -4,27 +4,32 @@ import { buildPagination, formatPaginatedResult } from '../../common/pagination.
 export async function listRoles(models, options = {}) {
     const {
         search,
+        departmentId,
         limit = 50,
         offset = 0,
         orderBy = 'createdAt',
         orderDir = 'DESC'
     } = options;
-    
+
     const where = {};
-    
+
+    if (departmentId) {
+        where.departmentId = departmentId;
+    }
+
     if (search) {
         where[Op.or] = [
             { name: { [Op.iLike]: `%${search}%` } },
             { description: { [Op.iLike]: `%${search}%` } }
         ];
     }
-    
+
     const { limit: safeLimit, offset: safeOffset } = buildPagination({ page: 1, limit, offset });
-    
+
     const result = await models.Role.findAndCountAll({
         where,
-        include: [{ 
-            model: models.Permission, 
+        include: [{
+            model: models.Permission,
             as: 'permissionEntities',
             through: { attributes: [] }
         }],
@@ -33,7 +38,7 @@ export async function listRoles(models, options = {}) {
         order: [[orderBy, orderDir]],
         distinct: true
     });
-    
+
     return formatPaginatedResult(result, { page: 1, limit: safeLimit });
 }
 
@@ -49,8 +54,8 @@ export async function createRole(models, payload) {
 
 export async function findRoleById(models, id) {
     return models.Role.findByPk(id, {
-        include: [{ 
-            model: models.Permission, 
+        include: [{
+            model: models.Permission,
             as: 'permissionEntities',
             through: { attributes: [] }
         }]

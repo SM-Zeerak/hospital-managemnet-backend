@@ -1,15 +1,66 @@
 import { z } from 'zod';
 
-export const createUserSchema = z.object({
-    email: z.email(),
-    password: z.string().min(8),
-    firstName: z.string().min(1),
-    lastName: z.string().min(1),
-    departmentId: z.uuid().nullable().optional(),
-    roleIds: z.array(z.uuid()).default([]),
-    commisionType: z.enum(['percentage', 'fixed']).optional(),
-    commisionValue: z.number().optional().default(0)
-});
+const staffShape = {
+    personalInfo: z.object({
+        phone: z.string().optional(),
+        address: z.string().optional(),
+        gender: z.enum(['male', 'female', 'other']).optional(),
+        dob: z.string().optional(),
+        emergencyContact: z.string().optional()
+    }).optional(),
+    qualificationInfo: z.array(z.object({
+        degree: z.string(),
+        institution: z.string(),
+        year: z.union([z.number(), z.string()]).optional().transform((v) => v === undefined || v === '' ? undefined : Number(v))
+    })).optional(),
+    experienceInfo: z.array(z.object({
+        company: z.string(),
+        position: z.string(),
+        duration: z.string().optional(),
+        description: z.string().optional()
+    })).optional(),
+    salary: z.union([z.number(), z.string()]).optional().transform((v) =>
+        v === undefined || v === '' ? undefined : Number(v)
+    ),
+    rfidCardNumber: z.string().optional(),
+    imageUrl: z.string().optional(),
+    /** Cloudinary: save these to delete the file later via delete API */
+    cloudinaryPublicId: z.string().optional(),
+    cloudinaryResourceType: z.enum(['image', 'raw', 'video', 'auto']).optional()
+};
+
+export const createUserSchema = z
+    .object({
+        email: z.email(),
+        password: z.string().min(8),
+        firstName: z.string().min(1),
+        lastName: z.string().min(1),
+        departmentId: z.uuid().nullable().optional(),
+        roleId: z.uuid().optional(),
+        roleIds: z.array(z.uuid()).default([]),
+        staffId: z.string().min(1, 'Staff ID is required and must not be empty'),
+        commisionType: z.enum(['percentage', 'fixed']).optional(),
+        commisionValue: z.number().optional().default(0),
+        salary: z.union([z.number(), z.string()]).optional(),
+        staff: z.object(staffShape).optional()
+    })
+    .transform((data) => {
+        const { salary: topLevelSalary, staff, roleId, roleIds: rids, ...rest } = data;
+        const roleIds = Array.isArray(rids) && rids.length > 0 ? rids : (roleId ? [roleId] : []);
+        const staffSalary =
+            staff?.salary !== undefined
+                ? (typeof staff.salary === 'number' ? staff.salary : Number(staff.salary))
+                : topLevelSalary !== undefined
+                  ? Number(topLevelSalary)
+                  : undefined;
+        const mergedStaff =
+            staff != null
+                ? { ...staff, ...(staffSalary !== undefined && { salary: staffSalary }) }
+                : topLevelSalary !== undefined
+                  ? { salary: Number(topLevelSalary) }
+                  : undefined;
+        return { ...rest, roleIds, staff: mergedStaff };
+    });
 
 export const updateUserSchema = z.object({
     email: z.email().optional(),
@@ -17,10 +68,16 @@ export const updateUserSchema = z.object({
     firstName: z.string().min(1).optional(),
     lastName: z.string().min(1).optional(),
     departmentId: z.uuid().nullable().optional(),
+    roleId: z.uuid().optional(),
     roleIds: z.array(z.uuid()).optional(),
     status: z.enum(['active', 'suspended']).optional(),
     commisionType: z.enum(['percentage', 'fixed']).optional(),
-    commisionValue: z.number().optional().default(0)
+    commisionValue: z.number().optional().default(0),
+    staff: z
+        .object({
+            ...staffShape
+        })
+        .optional()
 });
 
 export const idParamSchema = z.object({

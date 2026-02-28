@@ -26,10 +26,19 @@ export const registerCore = fp(async (app) => {
     });
 
     app.decorate('authGuard', async (request) => {
+        const authHeader = request.headers.authorization;
+        if (!authHeader || typeof authHeader !== 'string' || !authHeader.startsWith('Bearer ')) {
+            throw app.httpErrors.unauthorized('Missing or invalid Authorization header (expected: Bearer <access_token>)');
+        }
         try {
             await request.jwtVerify();
         } catch (error) {
-            throw app.httpErrors.unauthorized('Invalid authentication token');
+            const code = error.code || error.message || '';
+            const isExpired = code === 'FAST_JWT_EXPIRED' || /expired/i.test(String(code));
+            const msg = isExpired
+                ? 'Authentication token has expired; use refresh token to get a new access token'
+                : 'Invalid authentication token';
+            throw app.httpErrors.unauthorized(msg);
         }
     });
 

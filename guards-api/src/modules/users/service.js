@@ -2,10 +2,12 @@ import bcrypt from 'bcrypt';
 import { randomUUID } from 'node:crypto';
 import { Op } from 'sequelize';
 import { createHash } from 'node:crypto';
+import { uploadFile } from '../../utils/cloudinary.js';
 import { 
     computeUserRolesAndPermissions, 
     presentUser, 
     presentUsers,
+    presentUsersForList,
     getUserHighestRoleLevel,
     hasHigherRole
 } from './utils.js';
@@ -31,12 +33,11 @@ function withAssociations(models) {
             ]
         }
     ];
-    
-    // Only include UserCommission if the model exists
+
     if (models.UserCommission) {
         associations.push({ model: models.UserCommission, as: 'commission', required: false });
     }
-    
+
     return associations;
 }
 
@@ -297,7 +298,7 @@ export async function listUsers(models, options = {}) {
     }
     
     return {
-        data: presentUsers(filteredUsers),
+        data: presentUsersForList(filteredUsers),
         pagination: {
             total: filteredCount,
             limit: parseInt(limit),
@@ -309,14 +310,28 @@ export async function listUsers(models, options = {}) {
 
 export async function createUser(models, data, tenantId, inviterId = null) {
     const { TenantUser, Role, Department, UserCommission } = models;
-    const { password, roleIds = [], commisionType, commisionValue, departmentId, ...rest } = data;
-    
+    const { password, roleIds = [], commisionType, commisionValue, departmentId, staff: staffData, ...rest } = data;
+
     if (!tenantId) {
         throw new Error('tenantId is required for tenant isolation');
     }
-    
+
     delete rest.tenantId;
-    
+
+    // Staff ID (staffCode) must be unique per tenant
+    const staffId = rest.staffId || staffData?.staffCode;
+    if (staffId) {
+        const existingWithStaffId = await TenantUser.findOne({
+            where: { tenantId, staffCode: staffId }
+        });
+        if (existingWithStaffId) {
+            const error = new Error(`Staff ID "${staffId}" is already in use`);
+            error.statusCode = 409;
+            error.code = 'STAFF_ID_TAKEN';
+            throw error;
+        }
+    }
+
     // Validate department exists if provided
     if (departmentId) {
         const department = await Department.findOne({
@@ -329,13 +344,13 @@ export async function createUser(models, data, tenantId, inviterId = null) {
             throw error;
         }
     }
-    
+
     // Validate all roles exist if provided
     if (roleIds.length > 0) {
-        const roles = await Role.findAll({ 
-            where: { 
-                id: { [Op.in]: roleIds } 
-            } 
+        const roles = await Role.findAll({
+            where: {
+                id: { [Op.in]: roleIds }
+            }
         });
         if (roles.length !== roleIds.length) {
             const foundIds = roles.map(r => r.id);
@@ -346,16 +361,26 @@ export async function createUser(models, data, tenantId, inviterId = null) {
             throw error;
         }
     }
-    
+
     const passwordHash = await bcrypt.hash(password, 10);
 
+    // All data in users table: core fields + staff fields (contact, image, salary, qualifications, experience)
     const user = await TenantUser.create({
         ...rest,
         departmentId,
         tenantId,
-        passwordHash
+        passwordHash,
+        staffCode: rest.staffId || staffData?.staffCode || null,
+        personalInfo: staffData?.personalInfo || {},
+        qualificationInfo: staffData?.qualificationInfo || [],
+        experienceInfo: staffData?.experienceInfo || [],
+        salary: staffData?.salary != null ? Number(staffData.salary) : null,
+        imageUrl: staffData?.imageUrl || null,
+        cloudinaryPublicId: staffData?.cloudinaryPublicId || null,
+        cloudinaryResourceType: staffData?.cloudinaryResourceType || null,
+        rfidCardNumber: staffData?.rfidCardNumber || null
     });
-    
+
     // Only create commission if UserCommission model exists
     if (commisionType && commisionValue !== undefined && UserCommission) {
         await UserCommission.create({
@@ -365,7 +390,7 @@ export async function createUser(models, data, tenantId, inviterId = null) {
             commissionValue: commisionValue
         });
     }
-    
+
     // Assign roles if provided
     if (roleIds.length > 0) {
         const roles = await Role.findAll({ where: { id: { [Op.in]: roleIds } } });
@@ -432,11 +457,11 @@ export async function findUserById(models, id, tenantId, requesterId = null, req
 
 export async function updateUser(models, id, changes, tenantId, updaterId = null) {
     const { TenantUser, Role, UserCommission } = models;
-    
+
     if (!tenantId) {
         throw new Error('tenantId is required for tenant isolation');
     }
-    
+
     // First, verify the user exists and belongs to the tenant
     const user = await TenantUser.findOne({
         where: {
@@ -445,21 +470,47 @@ export async function updateUser(models, id, changes, tenantId, updaterId = null
         },
         include: withAssociations(models)
     });
-    
+
     if (!user) {
         return null;
     }
 
-    // Store the user ID to ensure we're working with the correct user instance
     const targetUserId = user.id;
 
-    const { roleIds, password, commisionType, commisionValue, ...rest } = changes;
+    const { roleIds: roleIdsRaw, roleId, password, commisionType, commisionValue, staff: staffData, ...rest } = changes;
+    const roleIds = roleIdsRaw !== undefined ? roleIdsRaw : (roleId != null ? [roleId] : undefined);
 
     if (password) {
         rest.passwordHash = await bcrypt.hash(password, 10);
     }
 
     delete rest.tenantId;
+
+    // Staff ID (staffCode) must be unique per tenant when updating
+    if (staffData?.staffCode != null && staffData.staffCode !== '') {
+        const existingWithStaffId = await TenantUser.findOne({
+            where: { tenantId, staffCode: staffData.staffCode, id: { [Op.ne]: user.id } }
+        });
+        if (existingWithStaffId) {
+            const error = new Error(`Staff ID "${staffData.staffCode}" is already in use`);
+            error.statusCode = 409;
+            error.code = 'STAFF_ID_TAKEN';
+            throw error;
+        }
+    }
+
+    // Merge staff fields into user update (all stored on users table)
+    if (staffData) {
+        if (staffData.staffCode !== undefined) rest.staffCode = staffData.staffCode;
+        if (staffData.personalInfo !== undefined) rest.personalInfo = staffData.personalInfo;
+        if (staffData.qualificationInfo !== undefined) rest.qualificationInfo = staffData.qualificationInfo;
+        if (staffData.experienceInfo !== undefined) rest.experienceInfo = staffData.experienceInfo;
+        if (staffData.salary !== undefined) rest.salary = staffData.salary != null ? Number(staffData.salary) : null;
+        if (staffData.imageUrl !== undefined) rest.imageUrl = staffData.imageUrl;
+        if (staffData.cloudinaryPublicId !== undefined) rest.cloudinaryPublicId = staffData.cloudinaryPublicId;
+        if (staffData.cloudinaryResourceType !== undefined) rest.cloudinaryResourceType = staffData.cloudinaryResourceType;
+        if (staffData.rfidCardNumber !== undefined) rest.rfidCardNumber = staffData.rfidCardNumber;
+    }
 
     await user.update(rest);
 
@@ -483,7 +534,7 @@ export async function updateUser(models, id, changes, tenantId, updaterId = null
             });
         }
     }
-    
+
     // Update roles if provided - setRoleEntities is scoped to this user instance
     // Sequelize's setRoleEntities will:
     // 1. Delete existing role mappings for THIS user only (WHERE user_id = user.id)
@@ -860,4 +911,19 @@ export async function acceptUserInvite(models, token, password) {
         ok: true,
         user: presentUser(userWithAssociations)
     };
+}
+
+/**
+ * Upload user/staff image to Cloudinary. Returns url + publicId + resourceType so you can save
+ * them and delete later via deleteFile(publicId, { resourceType }).
+ * @param {Buffer} buffer
+ * @param {Object} [options] - { mimetype, folder }
+ * @returns {Promise<{ url: string, publicId: string, resourceType: string }|null>}
+ */
+export async function uploadUserImage(buffer, options = {}) {
+    return uploadFile(buffer, {
+        folder: options.folder ?? 'staff_images',
+        resourceType: 'image',
+        mimetype: options.mimetype
+    });
 }

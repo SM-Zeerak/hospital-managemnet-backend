@@ -69,33 +69,31 @@ export function computeUserRolesAndPermissions(user) {
 }
 
 /**
- * Presents a user object with computed roles and permissions
- * @param {Object} user - User object from database
- * @returns {Object} User object with roles and permissions
+ * Presents full user data with computed roles, permissions, and roleIds.
+ * Keeps all nested data: department, roleEntities (with permissionEntities), commission, staff (if present).
  */
 export function presentUser(user) {
     if (!user) return null;
-    
+
     const { roles, permissions } = computeUserRolesAndPermissions(user);
-    
-    const userObj = user.toJSON ? user.toJSON() : user;
-    
-    // Remove sensitive fields
+
+    const userObj = user.toJSON ? user.toJSON() : { ...user };
+
+    // Remove sensitive fields only
     delete userObj.passwordHash;
     delete userObj.password;
-    
-    const commission = userObj.commission ? {
-        commissionType: userObj.commission.commissionType,
-        commissionValue: parseFloat(userObj.commission.commissionValue) || 0
-    } : null;
-    
-    delete userObj.commission;
-    
+
+    // Role IDs for convenience (full roleEntities remain in response)
+    const roleIds = userObj.roleEntities?.map((r) => r.id) || [];
+
     return {
         ...userObj,
         roles,
         permissions,
-        commission
+        roleIds,
+        // Keep full commission object when present
+        commission: userObj.commission ?? null,
+        // department, roleEntities (with permissionEntities), staff are already in userObj from toJSON()
     };
 }
 
@@ -106,5 +104,41 @@ export function presentUser(user) {
  */
 export function presentUsers(users) {
     return users.map(presentUser);
+}
+
+/**
+ * Presents user for list endpoint: full user data but without roleEntities, permissions, roleIds, commission.
+ * Keeps: id, email, firstName, lastName, tenantId, departmentId, status, lastLoginAt, createdAt, updatedAt, department, roles, staff (imageUrl, salary, etc.).
+ * Adds: url for frontend QR code — /public/guards/{userId}
+ */
+export function presentUserForList(user) {
+    if (!user) return null;
+
+    const { roles } = computeUserRolesAndPermissions(user);
+    const userObj = user.toJSON ? user.toJSON() : { ...user };
+
+    delete userObj.passwordHash;
+    delete userObj.password;
+    delete userObj.roleEntities;
+    delete userObj.commission;
+
+    const userId = userObj.id;
+
+    return {
+        ...userObj,
+        roles,
+        /** Public URL for this user/guard — use for QR code in frontend */
+        url: `/public/guards/${userId}`,
+        /** Top-level imageUrl and salary (stored on users table) */
+        imageUrl: userObj.imageUrl ?? null,
+        salary: userObj.salary != null ? Number(userObj.salary) : null
+    };
+}
+
+/**
+ * Presents multiple users for list endpoint
+ */
+export function presentUsersForList(users) {
+    return users.map(presentUserForList);
 }
 

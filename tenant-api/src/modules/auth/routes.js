@@ -97,14 +97,7 @@ export function registerAuthRoutes(app) {
         schema: {
             tags: ['Authentication'],
             summary: 'Refresh token',
-            description: 'Refresh access token using refresh token',
-            body: {
-                type: 'object',
-                required: ['refreshToken'],
-                properties: {
-                    refreshToken: { type: 'string' }
-                }
-            },
+            description: 'Refresh access token. Send refresh token in body as { "refreshToken": "..." } or in x-refresh-token header.',
             response: {
                 200: {
                     type: 'object',

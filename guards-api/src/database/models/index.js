@@ -6,6 +6,7 @@ import { initRolePermissionModel } from './role-permission.js';
 import { initTenantPasswordResetModel } from './tenant-password-reset.js';
 import { initTenantSessionModel } from './tenant-session.js';
 import { initTenantEmailVerificationModel } from './tenant-email-verification.js';
+import { initGuardModel } from './guard.js';
 
 function applyAssociations(models) {
     const {
@@ -16,7 +17,8 @@ function applyAssociations(models) {
         RolePermission,
         TenantPasswordReset,
         TenantSession,
-        TenantEmailVerification
+        TenantEmailVerification,
+        Guard
     } = models;
 
     // Department <-> User associations
@@ -117,6 +119,7 @@ function applyAssociations(models) {
             foreignKey: 'userId'
         });
     }
+
 }
 
 export function initModels(sequelize) {
@@ -128,7 +131,8 @@ export function initModels(sequelize) {
         RolePermission: initRolePermissionModel(sequelize),
         TenantPasswordReset: initTenantPasswordResetModel(sequelize),
         TenantSession: initTenantSessionModel(sequelize),
-        TenantEmailVerification: initTenantEmailVerificationModel(sequelize)
+        TenantEmailVerification: initTenantEmailVerificationModel(sequelize),
+        Guard: initGuardModel(sequelize)
     };
 
     applyAssociations(models);

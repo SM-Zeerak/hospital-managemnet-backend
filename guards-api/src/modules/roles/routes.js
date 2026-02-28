@@ -20,7 +20,7 @@ export function registerRoleRoutes(app) {
     const requireUpdate = app.permissionGuard('roles.update');
     const requireDelete = app.permissionGuard('roles.delete');
 
-    app.get('/tenant/roles', {
+    app.get('/guards/roles', {
         schema: {
             tags: ['Roles'],
             summary: 'List roles',
@@ -36,7 +36,7 @@ export function registerRoleRoutes(app) {
         preHandler: [authGuard, requireRead]
     }, listController);
 
-    app.post('/tenant/roles', {
+    app.post('/guards/roles', {
         schema: {
             tags: ['Roles'],
             summary: 'Create role',
@@ -56,7 +56,7 @@ export function registerRoleRoutes(app) {
         preHandler: [authGuard, requireAdmin, requireCreate]
     }, createController);
 
-    app.get('/tenant/roles/:id', {
+    app.get('/guards/roles/:id', {
         schema: {
             tags: ['Roles'],
             summary: 'Get role by ID',
@@ -73,7 +73,7 @@ export function registerRoleRoutes(app) {
         preHandler: [authGuard, requireRead]
     }, getController);
 
-    app.patch('/tenant/roles/:id', {
+    app.patch('/guards/roles/:id', {
         schema: {
             tags: ['Roles'],
             summary: 'Update role',
@@ -99,7 +99,7 @@ export function registerRoleRoutes(app) {
         preHandler: [authGuard, requireUpdate]
     }, updateController);
 
-    app.delete('/tenant/roles/:id', {
+    app.delete('/guards/roles/:id', {
         schema: {
             tags: ['Roles'],
             summary: 'Delete role',

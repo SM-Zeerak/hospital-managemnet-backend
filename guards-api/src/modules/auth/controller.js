@@ -177,15 +177,46 @@ export function createLoginController(app) {
     };
 }
 
+/**
+ * Check current session / auth state. Requires valid JWT.
+ * Returns the current user payload from the token.
+ */
+export function createCheckController(app) {
+    return async function checkController(request) {
+        const user = request.user || {};
+        return {
+            ok: true,
+            data: {
+                user: {
+                    id: user.userId || user.id,
+                    userId: user.userId || user.id,
+                    email: user.email,
+                    firstName: user.firstName,
+                    lastName: user.lastName,
+                    department: user.department,
+                    roles: user.roles || [],
+                    permissions: user.permissions || [],
+                    tenantId: user.tenantId
+                }
+            }
+        };
+    };
+}
+
 export function createRefreshController(app) {
     const fallbackTenantId = process.env.TENANT_ID || null;
 
     return async function refreshController(request) {
-        if (!request.body || typeof request.body !== 'object') {
-            throw app.httpErrors.badRequest('Request body is required');
+        // Accept refresh token from body (JSON) or x-refresh-token header (e.g. when no body sent)
+        let refreshToken = request.body?.refreshToken;
+        if (!refreshToken) {
+            const xRefresh = request.headers['x-refresh-token'] || request.headers['X-Refresh-Token'] || '';
+            refreshToken = (typeof xRefresh === 'string' ? xRefresh : '').trim();
         }
-
-        const { refreshToken } = refreshSchema.parse(request.body);
+        if (!refreshToken) {
+            throw app.httpErrors.badRequest('Refresh token required (send in body as { "refreshToken": "..." } or in x-refresh-token header)');
+        }
+        refreshSchema.parse({ refreshToken });
 
         try {
             const decoded = verifyRefreshToken(app, refreshToken);

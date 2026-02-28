@@ -12,7 +12,8 @@ import {
     createListInvitesController,
     createResendInviteController,
     createCancelInviteController,
-    createAcceptInviteController
+    createAcceptInviteController,
+    createUploadUserImageController
 } from './controller.js';
 
 export function registerUserRoutes(app) {
@@ -25,7 +26,7 @@ export function registerUserRoutes(app) {
     const requireAdminOrSubAdmin = app.roleGuard(['admin', 'sub-admin']);
 
     // User Statistics
-    app.get('/tenant/users/stats', {
+    app.get('/guards/users/stats', {
         schema: {
             tags: ['Users'],
             summary: 'Get user statistics',
@@ -45,12 +46,40 @@ export function registerUserRoutes(app) {
         preHandler: [authGuard, requireRead]
     }, createGetUserStatsController(app));
 
+    // Upload user/staff image (stub if not configured)
+    app.post('/guards/users/upload-image', {
+        schema: {
+            tags: ['Users'],
+            summary: 'Upload user/staff image',
+            description: 'Upload an image for a user/staff member',
+            security: [{ bearerAuth: [] }],
+            consumes: ['multipart/form-data'],
+            response: {
+                200: {
+                    type: 'object',
+                    properties: {
+                        ok: { type: 'boolean' },
+                        data: {
+                            type: 'object',
+                            properties: {
+                                imageUrl: { type: 'string', description: 'Public URL of the image' },
+                                cloudinaryPublicId: { type: 'string', description: 'Save this; use with DELETE /guards/files to remove from Cloudinary' },
+                                cloudinaryResourceType: { type: 'string', enum: ['image', 'raw', 'video'], description: 'Save for delete API (usually "image")' }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        preHandler: [authGuard, requireUpdate]
+    }, createUploadUserImageController(app));
+
     // User CRUD
-    app.get('/tenant/users', {
+    app.get('/guards/users', {
         schema: {
             tags: ['Users'],
             summary: 'List users',
-            description: 'Get a list of all users with pagination and filtering',
+            description: 'Get a list of all users with pagination and filtering. Returns full user: id, email, firstName, lastName, tenantId, departmentId, status, lastLoginAt, createdAt, updatedAt, department, roles, staffCode, personalInfo, qualificationInfo, experienceInfo, salary, imageUrl, url. Does not include roleEntities, permissions, roleIds, or commission.',
             security: [{ bearerAuth: [] }],
             querystring: {
                 type: 'object',
@@ -67,34 +96,67 @@ export function registerUserRoutes(app) {
                     dateFrom: { type: 'string', format: 'date-time' },
                     dateTo: { type: 'string', format: 'date-time' }
                 }
+            },
+            response: {
+                200: {
+                    type: 'object',
+                    properties: {
+                        ok: { type: 'boolean' },
+                        data: {
+                            type: 'array',
+                            items: {
+                                type: 'object',
+                                properties: {
+                                    id: { type: 'string', format: 'uuid' },
+                                    email: { type: 'string' },
+                                    firstName: { type: 'string' },
+                                    lastName: { type: 'string' },
+                                    tenantId: { type: 'string', format: 'uuid' },
+                                    departmentId: { type: ['string', 'null'], format: 'uuid' },
+                                    status: { type: 'string' },
+                                    lastLoginAt: { type: ['string', 'null'], format: 'date-time' },
+                                    createdAt: { type: 'string', format: 'date-time' },
+                                    updatedAt: { type: 'string', format: 'date-time' },
+                                    department: { type: ['object', 'null'], additionalProperties: true },
+                                    roles: { type: 'array', items: { type: 'string' } },
+                                    staffCode: { type: ['string', 'null'] },
+                                    personalInfo: { type: ['object', 'null'], additionalProperties: true },
+                                    qualificationInfo: { type: 'array', items: { type: 'object' } },
+                                    experienceInfo: { type: 'array', items: { type: 'object' } },
+                                    imageUrl: { type: ['string', 'null'] },
+                                    salary: { type: ['number', 'null'] },
+                                    url: { type: 'string', description: 'Public URL for QR code: /public/guards/{userId}' }
+                                }
+                            }
+                        },
+                        pagination: {
+                            type: 'object',
+                            properties: {
+                                total: { type: 'number' },
+                                limit: { type: 'number' },
+                                offset: { type: 'number' },
+                                pages: { type: 'number' }
+                            }
+                        },
+                        stats: { type: 'object', additionalProperties: true }
+                    }
+                }
             }
         },
         preHandler: [authGuard, requireRead]
     }, createListUsersController(app));
 
-    app.post('/tenant/users', {
+    app.post('/guards/users', {
         schema: {
             tags: ['Users'],
             summary: 'Create user',
-            description: 'Create a new user in the hospital',
-            security: [{ bearerAuth: [] }],
-            body: {
-                type: 'object',
-                required: ['email', 'password', 'firstName', 'lastName'],
-                properties: {
-                    email: { type: 'string', format: 'email' },
-                    password: { type: 'string', minLength: 8 },
-                    firstName: { type: 'string' },
-                    lastName: { type: 'string' },
-                    departmentId: { type: 'string', format: 'uuid' },
-                    roleIds: { type: 'array', items: { type: 'string', format: 'uuid' } }
-                }
-            }
+            description: 'Create a new user. Accepts application/json or multipart/form-data with "data" (JSON string) and optional "file" (image). Body validated in handler.',
+            security: [{ bearerAuth: [] }]
         },
         preHandler: [authGuard, requireAdminOrSubAdmin, requireCreate]
     }, createCreateUserController(app));
 
-    app.get('/tenant/users/:id', {
+    app.get('/guards/users/:id', {
         schema: {
             tags: ['Users'],
             summary: 'Get user by ID',
@@ -111,11 +173,11 @@ export function registerUserRoutes(app) {
         preHandler: [authGuard, requireRead]
     }, createGetUserController(app));
 
-    app.patch('/tenant/users/:id', {
+    app.patch('/guards/users/:id', {
         schema: {
             tags: ['Users'],
             summary: 'Update user',
-            description: 'Update user information',
+            description: 'Update user information. Accepts application/json or multipart/form-data with "data" (JSON string) and optional "file" (image). Body validated in handler.',
             security: [{ bearerAuth: [] }],
             params: {
                 type: 'object',
@@ -123,23 +185,12 @@ export function registerUserRoutes(app) {
                 properties: {
                     id: { type: 'string', format: 'uuid' }
                 }
-            },
-            body: {
-                type: 'object',
-                properties: {
-                    email: { type: 'string', format: 'email' },
-                    firstName: { type: 'string' },
-                    lastName: { type: 'string' },
-                    departmentId: { type: 'string', format: 'uuid' },
-                    roleIds: { type: 'array', items: { type: 'string', format: 'uuid' } },
-                    status: { type: 'string', enum: ['active', 'suspended'] }
-                }
             }
         },
         preHandler: [authGuard, requireUpdate]
     }, createUpdateUserController(app));
 
-    app.post('/tenant/users/:id/activate', {
+    app.post('/guards/users/:id/activate', {
         schema: {
             tags: ['Users'],
             summary: 'Activate user',
@@ -156,7 +207,7 @@ export function registerUserRoutes(app) {
         preHandler: [authGuard, requireAdminOrSubAdmin, requireUpdate]
     }, createActivateUserController(app));
 
-    app.post('/tenant/users/:id/suspend', {
+    app.post('/guards/users/:id/suspend', {
         schema: {
             tags: ['Users'],
             summary: 'Suspend user',
@@ -173,7 +224,7 @@ export function registerUserRoutes(app) {
         preHandler: [authGuard, requireAdminOrSubAdmin, requireUpdate]
     }, createSuspendUserController(app));
 
-    app.delete('/tenant/users/:id', {
+    app.delete('/guards/users/:id', {
         schema: {
             tags: ['Users'],
             summary: 'Delete user',
@@ -191,7 +242,7 @@ export function registerUserRoutes(app) {
     }, createDeleteUserController(app));
 
     // Bulk Operations
-    app.post('/tenant/users/bulk', {
+    app.post('/guards/users/bulk', {
         schema: {
             tags: ['Users'],
             summary: 'Bulk user operations',
@@ -210,7 +261,7 @@ export function registerUserRoutes(app) {
     }, createBulkOperationController(app));
 
     // User Invites
-    app.post('/tenant/users/invites', {
+    app.post('/guards/users/invites', {
         schema: {
             tags: ['Users'],
             summary: 'Create user invite',
@@ -231,7 +282,7 @@ export function registerUserRoutes(app) {
         preHandler: [authGuard, requireAdminOrSubAdmin, requireCreate]
     }, createCreateInviteController(app));
 
-    app.get('/tenant/users/invites', {
+    app.get('/guards/users/invites', {
         schema: {
             tags: ['Users'],
             summary: 'List user invites',
@@ -250,7 +301,7 @@ export function registerUserRoutes(app) {
         preHandler: [authGuard, requireRead]
     }, createListInvitesController(app));
 
-    app.post('/tenant/users/invites/:inviteId/resend', {
+    app.post('/guards/users/invites/:inviteId/resend', {
         schema: {
             tags: ['Users'],
             summary: 'Resend user invite',
@@ -267,7 +318,7 @@ export function registerUserRoutes(app) {
         preHandler: [authGuard, requireAdminOrSubAdmin, requireCreate]
     }, createResendInviteController(app));
 
-    app.post('/tenant/users/invites/:inviteId/cancel', {
+    app.post('/guards/users/invites/:inviteId/cancel', {
         schema: {
             tags: ['Users'],
             summary: 'Cancel user invite',
@@ -285,7 +336,7 @@ export function registerUserRoutes(app) {
     }, createCancelInviteController(app));
 
     // Public endpoint for accepting invites (no auth required)
-    app.post('/tenant/users/invites/accept', {
+    app.post('/guards/users/invites/accept', {
         schema: {
             tags: ['Users'],
             summary: 'Accept user invite',

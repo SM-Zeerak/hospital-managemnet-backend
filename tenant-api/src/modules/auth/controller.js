@@ -181,11 +181,16 @@ export function createRefreshController(app) {
     const fallbackTenantId = process.env.TENANT_ID || null;
 
     return async function refreshController(request) {
-        if (!request.body || typeof request.body !== 'object') {
-            throw app.httpErrors.badRequest('Request body is required');
+        // Accept refresh token from body (JSON) or x-refresh-token header (e.g. when no body sent)
+        let refreshToken = request.body?.refreshToken;
+        if (!refreshToken) {
+            const xRefresh = request.headers['x-refresh-token'] || request.headers['X-Refresh-Token'] || '';
+            refreshToken = (typeof xRefresh === 'string' ? xRefresh : '').trim();
         }
-
-        const { refreshToken } = refreshSchema.parse(request.body);
+        if (!refreshToken) {
+            throw app.httpErrors.badRequest('Refresh token required (send in body as { "refreshToken": "..." } or in x-refresh-token header)');
+        }
+        refreshSchema.parse({ refreshToken });
 
         try {
             const decoded = verifyRefreshToken(app, refreshToken);

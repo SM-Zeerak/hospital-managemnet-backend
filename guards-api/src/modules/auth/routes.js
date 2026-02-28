@@ -1,5 +1,6 @@
 import {
     createLoginController,
+    createCheckController,
     createRefreshController,
     createLogoutController,
     createRequestResetController,
@@ -14,6 +15,7 @@ export function registerAuthRoutes(app) {
     app.log.info({ module: 'tenant-auth' }, 'Registering tenant auth routes');
 
     const loginController = createLoginController(app);
+    const checkController = createCheckController(app);
     const refreshController = createRefreshController(app);
     const logoutController = createLogoutController(app);
     const requestResetController = createRequestResetController(app);
@@ -23,7 +25,7 @@ export function registerAuthRoutes(app) {
     const resendEmailVerificationController = createResendEmailVerificationController(app);
     const verifyEmailController = createVerifyEmailController(app);
 
-    app.post('/tenant/auth/login', {
+    app.post('/guards/auth/login', {
         schema: {
             tags: ['Authentication'],
             summary: 'Login',
@@ -93,18 +95,48 @@ export function registerAuthRoutes(app) {
         }
     }, loginController);
 
-    app.post('/tenant/auth/refresh-token', {
+    app.get('/guards/auth/check', {
+        schema: {
+            tags: ['Authentication'],
+            summary: 'Check auth / current session',
+            description: 'Validate JWT and return current user payload. Use to check if the user is logged in.',
+            security: [{ bearerAuth: [] }],
+            response: {
+                200: {
+                    type: 'object',
+                    properties: {
+                        ok: { type: 'boolean' },
+                        data: {
+                            type: 'object',
+                            properties: {
+                                user: {
+                                    type: 'object',
+                                    properties: {
+                                        id: { type: 'string', format: 'uuid' },
+                                        userId: { type: 'string', format: 'uuid' },
+                                        email: { type: 'string' },
+                                        firstName: { type: 'string' },
+                                        lastName: { type: 'string' },
+                                        department: { type: ['string', 'null'] },
+                                        roles: { type: 'array', items: { type: 'string' } },
+                                        permissions: { type: 'array', items: { type: 'string' } },
+                                        tenantId: { type: ['string', 'null'], format: 'uuid' }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        preHandler: [app.authGuard]
+    }, checkController);
+
+    app.post('/guards/auth/refresh-token', {
         schema: {
             tags: ['Authentication'],
             summary: 'Refresh token',
-            description: 'Refresh access token using refresh token',
-            body: {
-                type: 'object',
-                required: ['refreshToken'],
-                properties: {
-                    refreshToken: { type: 'string' }
-                }
-            },
+            description: 'Refresh access token. Send refresh token in body as { "refreshToken": "..." } or in x-refresh-token header.',
             response: {
                 200: {
                     type: 'object',
@@ -136,7 +168,25 @@ export function registerAuthRoutes(app) {
         }
     }, refreshController);
 
-    app.post('/tenant/auth/logout', {
+    // Alias: POST /auth/refresh-token (for clients calling /api/v1/auth/refresh-token)
+    app.post('/auth/refresh-token', {
+        schema: {
+            tags: ['Authentication'],
+            summary: 'Refresh token (alias)',
+            description: 'Same as POST /guards/auth/refresh-token. Send refresh token in body or x-refresh-token header.',
+            response: {
+                200: {
+                    type: 'object',
+                    properties: {
+                        ok: { type: 'boolean' },
+                        data: { type: 'object' }
+                    }
+                }
+            }
+        }
+    }, refreshController);
+
+    app.post('/guards/auth/logout', {
         schema: {
             tags: ['Authentication'],
             summary: 'Logout',
@@ -170,7 +220,7 @@ export function registerAuthRoutes(app) {
         }
     }, logoutController);
 
-    app.post('/tenant/auth/request-reset', {
+    app.post('/guards/auth/request-reset', {
         schema: {
             tags: ['Authentication'],
             summary: 'Request password reset',
@@ -208,7 +258,7 @@ export function registerAuthRoutes(app) {
         }
     }, requestResetController);
 
-    app.post('/tenant/auth/request-reset/resend', {
+    app.post('/guards/auth/request-reset/resend', {
         schema: {
             tags: ['Authentication'],
             summary: 'Resend password reset',
@@ -246,7 +296,7 @@ export function registerAuthRoutes(app) {
         }
     }, resendResetController);
 
-    app.post('/tenant/auth/reset', {
+    app.post('/guards/auth/reset', {
         schema: {
             tags: ['Authentication'],
             summary: 'Reset password',
@@ -283,7 +333,7 @@ export function registerAuthRoutes(app) {
         }
     }, resetPasswordController);
 
-    app.post('/tenant/auth/verify-email/request', {
+    app.post('/guards/auth/verify-email/request', {
         schema: {
             tags: ['Authentication'],
             summary: 'Request email verification',
@@ -315,7 +365,7 @@ export function registerAuthRoutes(app) {
         }
     }, requestEmailVerificationController);
 
-    app.post('/tenant/auth/verify-email/resend', {
+    app.post('/guards/auth/verify-email/resend', {
         schema: {
             tags: ['Authentication'],
             summary: 'Resend email verification',
@@ -347,7 +397,7 @@ export function registerAuthRoutes(app) {
         }
     }, resendEmailVerificationController);
 
-    app.post('/tenant/auth/verify-email', {
+    app.post('/guards/auth/verify-email', {
         schema: {
             tags: ['Authentication'],
             summary: 'Verify email',

@@ -3,6 +3,8 @@ import { registerUsersModule } from './users/index.js';
 import { registerDepartmentsModule } from './departments/index.js';
 import { registerRolesModule } from './roles/index.js';
 import { registerPermissionsModule } from './permissions/index.js';
+import { registerGuardsModule } from './guards/index.js';
+import { registerUploadModule } from './upload/index.js';
 import { registerAdminModule } from './admin/index.js';
 
 export async function registerRoutes(app) {
@@ -52,6 +54,8 @@ export async function registerRoutes(app) {
         registerDepartmentsModule,
         registerRolesModule,
         registerPermissionsModule,
+        registerGuardsModule,
+        registerUploadModule,
         registerAdminModule,
     ];
     for (const module of modules) {

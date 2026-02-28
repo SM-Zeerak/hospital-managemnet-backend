@@ -23,7 +23,8 @@ import {
     listUserInvites,
     resendUserInvite,
     cancelUserInvite,
-    acceptUserInvite
+    acceptUserInvite,
+    uploadUserImage
 } from './service.js';
 import { getUserHighestRoleLevel } from './utils.js';
 
@@ -172,33 +173,103 @@ export function createGetUserController(app) {
     };
 }
 
+async function parseMultipartUserBody(request, app) {
+    const raw = {};
+    let dataJson = null;
+    /** @type {{ url: string, publicId: string, resourceType: string }|null} */
+    let cloudinaryResult = null;
+    const parts = request.parts();
+    for await (const part of parts) {
+        if (part.type === 'file') {
+            if (part.fieldname === 'file') {
+                const buffer = await part.toBuffer();
+                try {
+                    cloudinaryResult = await uploadUserImage(buffer);
+                } catch {
+                    // Image upload not configured - ignore
+                }
+            } else {
+                await part.toBuffer();
+            }
+            continue;
+        }
+        if (part.type === 'field' && part.fieldname) {
+            if (part.fieldname === 'data') {
+                try {
+                    dataJson = JSON.parse(part.value);
+                } catch {
+                    throw app.httpErrors.badRequest('Invalid JSON in "data" field');
+                }
+                continue;
+            }
+            let value = part.value;
+            if (part.fieldname === 'roleIds' && typeof value === 'string') {
+                try {
+                    value = JSON.parse(value);
+                } catch {
+                    value = value ? [value] : [];
+                }
+            }
+            if (part.fieldname === 'staff' && typeof value === 'string') {
+                try {
+                    value = JSON.parse(value);
+                } catch {
+                    value = undefined;
+                }
+            }
+            if (value !== undefined) raw[part.fieldname] = value;
+        }
+    }
+    const parsed = dataJson !== null ? dataJson : (Object.keys(raw).length ? raw : null);
+    if (parsed && typeof parsed === 'object') {
+        delete parsed.confirmPassword;
+        // keep staffId so service can save as staffCode
+    }
+    return { parsed, cloudinaryResult };
+}
+
 export function createCreateUserController(app) {
     return async function createUserController(request) {
-        const payload = createUserSchema.parse(request.body);
+        let payload;
+
+        if (request.isMultipart && request.isMultipart()) {
+            const { parsed, cloudinaryResult } = await parseMultipartUserBody(request, app);
+            if (!parsed) {
+                throw app.httpErrors.badRequest('Missing form data or "data" field in multipart request');
+            }
+            payload = createUserSchema.parse(parsed);
+            if (cloudinaryResult) {
+                payload.staff = payload.staff || {};
+                payload.staff.imageUrl = cloudinaryResult.url;
+                payload.staff.cloudinaryPublicId = cloudinaryResult.publicId;
+                payload.staff.cloudinaryResourceType = cloudinaryResult.resourceType;
+            }
+        } else {
+            payload = createUserSchema.parse(request.body);
+        }
+
         const tenantId = request.user?.tenantId || process.env.TENANT_ID;
         const inviterId = request.user?.id;
-        
+
         if (!tenantId) {
             throw app.httpErrors.unauthorized('Tenant context required');
         }
-        
+
         try {
             const user = await createUser(app.db.models, payload, tenantId, inviterId);
-            
-            // Emit socket event
+
             if (app.tenantIO) {
                 app.tenantIO.emit('user:created', { user });
             }
-            
+
             return {
                 ok: true,
                 data: user
             };
         } catch (error) {
-            if (error.message.includes('already exists')) {
+            if (error.message.includes('already exists') || error.code === 'STAFF_ID_TAKEN' || error.statusCode === 409) {
                 throw app.httpErrors.conflict(error.message);
             }
-            // Handle validation errors for missing departments/roles
             if (error.statusCode === 400 || error.code === 'INVALID_REFERENCE') {
                 throw app.httpErrors.badRequest(error.message);
             }
@@ -210,29 +281,52 @@ export function createCreateUserController(app) {
 export function createUpdateUserController(app) {
     return async function updateUserController(request) {
         const { id } = idParamSchema.parse(request.params);
-        const payload = updateUserSchema.parse(request.body);
+        let payload;
+
+        if (request.isMultipart && request.isMultipart()) {
+            const { parsed, cloudinaryResult } = await parseMultipartUserBody(request, app);
+            if (!parsed) {
+                throw app.httpErrors.badRequest('Missing form data or "data" field in multipart request');
+            }
+            payload = updateUserSchema.parse(parsed);
+            if (cloudinaryResult) {
+                payload.staff = payload.staff || {};
+                payload.staff.imageUrl = cloudinaryResult.url;
+                payload.staff.cloudinaryPublicId = cloudinaryResult.publicId;
+                payload.staff.cloudinaryResourceType = cloudinaryResult.resourceType;
+            }
+        } else {
+            payload = updateUserSchema.parse(request.body);
+        }
+
         const tenantId = request.user?.tenantId || process.env.TENANT_ID;
         const updaterId = request.user?.id;
-        
+
         if (!tenantId) {
             throw app.httpErrors.unauthorized('Tenant context required');
         }
 
-        const user = await updateUser(app.db.models, id, payload, tenantId, updaterId);
-        
-        if (!user) {
-            throw app.httpErrors.notFound('User not found');
-        }
-        
-        // Emit socket event
-        if (app.tenantIO) {
-            app.tenantIO.emit('user:updated', { user });
-        }
+        try {
+            const user = await updateUser(app.db.models, id, payload, tenantId, updaterId);
 
-        return {
-            ok: true,
-            data: user
-        };
+            if (!user) {
+                throw app.httpErrors.notFound('User not found');
+            }
+
+            if (app.tenantIO) {
+                app.tenantIO.emit('user:updated', { user });
+            }
+
+            return {
+                ok: true,
+                data: user
+            };
+        } catch (error) {
+            if (error.code === 'STAFF_ID_TAKEN' || error.statusCode === 409) {
+                throw app.httpErrors.conflict(error.message);
+            }
+            throw error;
+        }
     };
 }
 
@@ -536,7 +630,7 @@ export function createAcceptInviteController(app) {
     return async function acceptInviteController(request) {
         const { token, password } = acceptInviteSchema.parse(request.body);
         const result = await acceptUserInvite(app.db.models, token, password);
-        
+
         if (!result.ok) {
             const statusCode = {
                 'invite_not_found': 404,
@@ -544,18 +638,40 @@ export function createAcceptInviteController(app) {
                 'invite_already_accepted': 400,
                 'user_already_exists': 409
             }[result.reason] || 400;
-            
+
             throw app.httpErrors.createError(statusCode, result.reason);
         }
-        
-        // Emit socket event
+
         if (app.tenantIO) {
             app.tenantIO.emit('user:invite:accepted', { user: result.user });
         }
-        
+
         return {
             ok: true,
             data: result.user
         };
+    };
+}
+
+export function createUploadUserImageController(app) {
+    return async function uploadUserImageController(request) {
+        const file = await request.file();
+        if (!file) {
+            throw app.httpErrors.badRequest('No file uploaded');
+        }
+        const buffer = await file.toBuffer();
+        const result = await uploadUserImage(buffer);
+        if (!result) {
+            throw app.httpErrors.notImplemented('Image upload is not configured (set CLOUDINARY_* env)');
+        }
+        const data = {
+            ok: true,
+            data: {
+                imageUrl: result.url,
+                cloudinaryPublicId: result.publicId,
+                cloudinaryResourceType: result.resourceType
+            }
+        };
+        return data;
     };
 }

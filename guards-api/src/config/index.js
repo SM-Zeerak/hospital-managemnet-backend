@@ -3,6 +3,7 @@ import fastifyCors from '@fastify/cors';
 import fastifyHelmet from '@fastify/helmet';
 import fastifyRateLimit from '@fastify/rate-limit';
 import fastifyJwt from '@fastify/jwt';
+import fastifyMultipart from '@fastify/multipart';
 import fastifySwagger from '@fastify/swagger';
 import fastifySwaggerUi from '@fastify/swagger-ui';
 import fastifySensible from '@fastify/sensible';
@@ -48,6 +49,10 @@ export const registerConfig = fp(async (app) => {
 
     await app.register(fastifySensible);
 
+    await app.register(fastifyMultipart, {
+        limits: { fileSize: 10 * 1024 * 1024 }
+    });
+
     await app.register(fastifyRateLimit, {
         max: 200,
         timeWindow: '1 minute'
@@ -86,6 +91,8 @@ export const registerConfig = fp(async (app) => {
                 { name: 'Departments', description: 'Manage hospital departments' },
                 { name: 'Roles', description: 'Manage roles and role assignment' },
                 { name: 'Permissions', description: 'Manage permissions and role-permission mapping' },
+                { name: 'Guards', description: 'Guard registration and records' },
+                { name: 'Upload', description: 'Upload files (image, PDF, docs) to Cloudinary; returns url + publicId for later delete' },
                 { name: 'Admin', description: 'Administrative operations for hospital tenant' }
             ],
             // Swagger-UI extension: group tags into sections
@@ -93,6 +100,8 @@ export const registerConfig = fp(async (app) => {
                 { name: 'System', tags: ['System'] },
                 { name: 'Access', tags: ['Authentication'] },
                 { name: 'Organization', tags: ['Users', 'Departments', 'Roles', 'Permissions'] },
+                { name: 'Guards', tags: ['Guards'] },
+                { name: 'Upload', tags: ['Upload'] },
                 { name: 'Administration', tags: ['Admin'] }
             ],
             servers: [
