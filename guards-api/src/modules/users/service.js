@@ -16,23 +16,9 @@ const TOKEN_HASH_ALGO = 'sha256';
 const INVITE_TOKEN_TTL_DAYS = 7;
 
 function withAssociations(models) {
-    const associations = [
-        { model: models.Department, as: 'department', required: false },
-        {
-            model: models.Role,
-            as: 'roleEntities',
-            through: { attributes: [] },
-            required: false,
-            include: [
-                {
-                    model: models.Permission,
-                    as: 'permissionEntities',
-                    through: { attributes: [] },
-                    required: false
-                }
-            ]
-        }
-    ];
+    // Role / Permission many-to-many mappings were removed from guards-api.
+    // We no longer eager-load associations for users list.
+    const associations = [];
 
     if (models.UserCommission) {
         associations.push({ model: models.UserCommission, as: 'commission', required: false });
@@ -65,44 +51,8 @@ export async function getUserStats(models, tenantId, requesterId = null, request
         createdAt: { [Op.lte]: thirtyDaysAgo, [Op.gte]: sixtyDaysAgo }
     };
     
-    // Get all users to filter by role level if needed
+    // Role mappings were removed from guards-api; we no longer down-filter stats by role level.
     let userFilter = null;
-    if (requesterRoles && Array.isArray(requesterRoles) && requesterRoles.length > 0) {
-        const requesterLevel = getUserHighestRoleLevel({ roles: requesterRoles });
-        
-        // Fetch all users to filter by role level
-        const allUsers = await TenantUser.findAll({
-            where,
-            include: [
-                {
-                    model: models.Role,
-                    as: 'roleEntities',
-                    through: { attributes: [] },
-                    required: false
-                }
-            ],
-            attributes: ['id', 'status', 'createdAt']
-        });
-        
-        const filteredUserIds = allUsers
-            .filter(user => {
-                // Double-check: exclude requester
-                if (requesterId && user.id === requesterId) {
-                    return false;
-                }
-                // Exclude users with higher roles
-                const userLevel = getUserHighestRoleLevel(user);
-                return userLevel <= requesterLevel;
-            })
-            .map(user => user.id);
-        
-        if (filteredUserIds.length > 0) {
-            userFilter = { [Op.in]: filteredUserIds };
-        } else {
-            // No users match the criteria, return zero stats
-            userFilter = { [Op.in]: [] };
-        }
-    }
     
     // Apply user filter if we have one
     const currentWhere = userFilter ? { ...where, id: userFilter } : where;
@@ -239,10 +189,6 @@ export async function listUsers(models, options = {}) {
         where.status = status;
     }
     
-    if (departmentId) {
-        where.departmentId = departmentId;
-    }
-    
     if (dateFrom || dateTo) {
         where.createdAt = {};
         if (dateFrom) where.createdAt[Op.gte] = new Date(dateFrom);
@@ -250,16 +196,6 @@ export async function listUsers(models, options = {}) {
     }
     
     const include = withAssociations(models);
-    
-    if (roleId) {
-        include.push({
-            model: models.Role,
-            as: 'roleEntities',
-            where: { id: roleId },
-            required: true,
-            through: { attributes: [] }
-        });
-    }
     
     const users = await TenantUser.findAndCountAll({
         where,
@@ -274,27 +210,66 @@ export async function listUsers(models, options = {}) {
     let filteredUsers = users.rows;
     let filteredCount = users.count;
     
-    if (requesterId || (requesterRoles && Array.isArray(requesterRoles) && requesterRoles.length > 0)) {
-        const requesterLevel = requesterRoles && requesterRoles.length > 0 
-            ? getUserHighestRoleLevel({ roles: requesterRoles })
-            : 999; // If no roles, allow all (shouldn't happen)
-        
-        filteredUsers = users.rows.filter(user => {
-            // Always exclude the requester (double-check in case where clause didn't work)
-            if (requesterId && user.id === requesterId) {
-                return false;
+    // No role-level filtering now that role mappings are removed
+    filteredUsers = users.rows;
+    filteredCount = users.count;
+
+    // Enrich users with roles and permissions from direct columns (roleId, permissionIds)
+    const { Role, Permission } = models;
+    const roleIdSet = new Set();
+    const permissionIdSet = new Set();
+
+    for (const user of filteredUsers) {
+        if (user.roleId) {
+            roleIdSet.add(user.roleId);
+        }
+        if (Array.isArray(user.permissionIds)) {
+            for (const pid of user.permissionIds) {
+                permissionIdSet.add(pid);
             }
-            
-            // Exclude users with higher roles
-            if (requesterRoles && requesterRoles.length > 0) {
-                const userLevel = getUserHighestRoleLevel(user);
-                return userLevel <= requesterLevel;
+        }
+    }
+
+    const roleIdList = Array.from(roleIdSet);
+    const permIdList = Array.from(permissionIdSet);
+
+    let rolesById = {};
+    let permsById = {};
+
+    if (Role && roleIdList.length > 0) {
+        const roles = await Role.findAll({ where: { id: { [Op.in]: roleIdList } } });
+        rolesById = roles.reduce((acc, r) => {
+            acc[r.id] = r.name;
+            return acc;
+        }, {});
+    }
+
+    if (Permission && permIdList.length > 0) {
+        const perms = await Permission.findAll({ where: { id: { [Op.in]: permIdList } } });
+        permsById = perms.reduce((acc, p) => {
+            acc[p.id] = p.key;
+            return acc;
+        }, {});
+    }
+
+    // Attach roles/permissions arrays to each user instance
+    for (const user of filteredUsers) {
+        const roles = [];
+        if (user.roleId && rolesById[user.roleId]) {
+            roles.push(rolesById[user.roleId]);
+        }
+
+        const permissions = [];
+        if (Array.isArray(user.permissionIds)) {
+            for (const pid of user.permissionIds) {
+                if (permsById[pid]) {
+                    permissions.push(permsById[pid]);
+                }
             }
-            
-            return true;
-        });
-        
-        filteredCount = filteredUsers.length;
+        }
+
+        user.roles = roles;
+        user.permissions = permissions;
     }
     
     return {
@@ -309,8 +284,8 @@ export async function listUsers(models, options = {}) {
 }
 
 export async function createUser(models, data, tenantId, inviterId = null) {
-    const { TenantUser, Role, Department, UserCommission } = models;
-    const { password, roleIds = [], commisionType, commisionValue, departmentId, staff: staffData, ...rest } = data;
+    const { TenantUser, Role, UserCommission } = models;
+    const { password, roleIds = [], commisionType, commisionValue, staff: staffData, ...rest } = data;
 
     if (!tenantId) {
         throw new Error('tenantId is required for tenant isolation');
@@ -328,19 +303,6 @@ export async function createUser(models, data, tenantId, inviterId = null) {
             const error = new Error(`Staff ID "${staffId}" is already in use`);
             error.statusCode = 409;
             error.code = 'STAFF_ID_TAKEN';
-            throw error;
-        }
-    }
-
-    // Validate department exists if provided
-    if (departmentId) {
-        const department = await Department.findOne({
-            where: { id: departmentId }
-        });
-        if (!department) {
-            const error = new Error(`Department with ID ${departmentId} does not exist`);
-            error.statusCode = 400;
-            error.code = 'INVALID_REFERENCE';
             throw error;
         }
     }
@@ -367,7 +329,6 @@ export async function createUser(models, data, tenantId, inviterId = null) {
     // All data in users table: core fields + staff fields (contact, image, salary, qualifications, experience)
     const user = await TenantUser.create({
         ...rest,
-        departmentId,
         tenantId,
         passwordHash,
         staffCode: rest.staffId || staffData?.staffCode || null,
@@ -434,23 +395,32 @@ export async function findUserById(models, id, tenantId, requesterId = null, req
         where: {
             id,
             tenantId
-        },
-        include: withAssociations(models)
+        }
     });
     
     if (!user) {
         return null;
     }
     
-    // Check if user has higher role than requester
-    if (requesterRoles && Array.isArray(requesterRoles) && requesterRoles.length > 0) {
-        const requesterLevel = getUserHighestRoleLevel({ roles: requesterRoles });
-        const userLevel = getUserHighestRoleLevel(user);
-        
-        if (userLevel > requesterLevel) {
-            return null; // User has higher role, don't return
+    // Enrich user with roles and permissions from direct columns
+    const { Role, Permission } = models;
+    const roles = [];
+    const permissions = [];
+
+    if (user.roleId && Role) {
+        const role = await Role.findByPk(user.roleId);
+        if (role) {
+            roles.push(role.name);
         }
     }
+
+    if (Array.isArray(user.permissionIds) && Permission) {
+        const perms = await Permission.findAll({ where: { id: { [Op.in]: user.permissionIds } } });
+        perms.forEach((p) => permissions.push(p.key));
+    }
+
+    user.roles = roles;
+    user.permissions = permissions;
     
     return presentUser(user);
 }
@@ -708,8 +678,7 @@ export async function createUserInvite(models, data, tenantId, inviterId) {
     
     const inviteWithAssociations = await UserInvite.findByPk(invite.id, {
         include: [
-            { model: models.TenantUser, as: 'inviter', required: false },
-            { model: models.Department, as: 'department', required: false }
+            { model: models.TenantUser, as: 'inviter', required: false }
         ]
     });
     
@@ -752,8 +721,7 @@ export async function listUserInvites(models, options = {}) {
     const invites = await UserInvite.findAndCountAll({
         where,
         include: [
-            { model: models.TenantUser, as: 'inviter', required: false },
-            { model: models.Department, as: 'department', required: false }
+            { model: models.TenantUser, as: 'inviter', required: false }
         ],
         limit: parseInt(limit),
         offset: parseInt(offset),

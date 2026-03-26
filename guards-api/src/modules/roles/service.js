@@ -23,11 +23,6 @@ export async function listRoles(models, options = {}) {
     
     const result = await models.Role.findAndCountAll({
         where,
-        include: [{ 
-            model: models.Permission, 
-            as: 'permissionEntities',
-            through: { attributes: [] }
-        }],
         limit: safeLimit,
         offset: safeOffset,
         order: [[orderBy, orderDir]],
@@ -39,22 +34,13 @@ export async function listRoles(models, options = {}) {
 
 export async function createRole(models, payload) {
     const { permissionIds = [], ...rest } = payload;
+    // permissions are now stored directly on users, not via role mappings.
     const role = await models.Role.create(rest);
-    if (permissionIds.length > 0) {
-        const permissions = await models.Permission.findAll({ where: { id: { [Op.in]: permissionIds } } });
-        await role.setPermissionEntities(permissions);
-    }
-    return role.reload({ include: [{ model: models.Permission, as: 'permissionEntities', through: { attributes: [] } }] });
+    return role;
 }
 
 export async function findRoleById(models, id) {
-    return models.Role.findByPk(id, {
-        include: [{ 
-            model: models.Permission, 
-            as: 'permissionEntities',
-            through: { attributes: [] }
-        }]
-    });
+    return models.Role.findByPk(id);
 }
 
 export async function updateRole(models, id, changes) {
@@ -68,16 +54,9 @@ export async function updateRole(models, id, changes) {
         await role.update(rest);
     }
 
-    if (permissionIds !== undefined) {
-        if (permissionIds.length > 0) {
-            const permissions = await models.Permission.findAll({ where: { id: { [Op.in]: permissionIds } } });
-            await role.setPermissionEntities(permissions);
-        } else {
-            await role.setPermissionEntities([]);
-        }
-    }
+    // permissionIds no longer handled at role level
 
-    return role.reload({ include: [{ model: models.Permission, as: 'permissionEntities', through: { attributes: [] } }] });
+    return role;
 }
 
 export async function deleteRole(models, id) {

@@ -53,6 +53,15 @@ export function hasHigherRole(user1, user2) {
  * @returns {Object} Object with roles and permissions arrays
  */
 export function computeUserRolesAndPermissions(user) {
+    // If roles and permissions already exist on the user (e.g. set in services),
+    // prefer those instead of recomputing from associations.
+    if (Array.isArray(user.roles) && Array.isArray(user.permissions)) {
+        return {
+            roles: user.roles,
+            permissions: user.permissions
+        };
+    }
+
     const roles = user.roleEntities?.map(r => r.name) || [];
     const permissions = new Set();
     

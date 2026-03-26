@@ -18,7 +18,8 @@ export function createListPermissionsController(app) {
         const requesterRoles = request.user?.roles || [];
         
         // Only admin (level 3) and sub-admin (level 2) can access permissions
-        if (requesterRoles.length > 0) {
+        // Super admin bypass
+        if (requesterRoles.length > 0 && !requesterRoles.includes('super-admin')) {
             const requesterLevel = getUserHighestRoleLevel({ roles: requesterRoles });
             if (requesterLevel < 2) {
                 throw app.httpErrors.forbidden('Insufficient role level to view permissions. Only administrators can access this resource.');
@@ -61,7 +62,8 @@ export function createGetPermissionController(app) {
         const requesterRoles = request.user?.roles || [];
         
         // Only admin (level 3) and sub-admin (level 2) can access permissions
-        if (requesterRoles.length > 0) {
+        // Super admin bypass
+        if (requesterRoles.length > 0 && !requesterRoles.includes('super-admin')) {
             const requesterLevel = getUserHighestRoleLevel({ roles: requesterRoles });
             if (requesterLevel < 2) {
                 throw app.httpErrors.forbidden('Insufficient role level to view permissions. Only administrators can access this resource.');

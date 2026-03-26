@@ -45,6 +45,10 @@ export const registerCore = fp(async (app) => {
     app.decorate('roleGuard', (roles) => async (request) => {
         await app.authGuard(request);
         const roleSet = new Set(request.user?.roles || []);
+        // Super admin bypass: always allowed
+        if (roleSet.has('super-admin')) {
+            return;
+        }
         const allowed = roles.some((role) => roleSet.has(role));
         if (!allowed) {
             throw app.httpErrors.forbidden('Insufficient role permissions');
@@ -54,6 +58,11 @@ export const registerCore = fp(async (app) => {
     app.decorate('permissionGuard', (permission) => async (request) => {
         await app.authGuard(request);
         const permissions = request.user?.permissions || [];
+        // Super admin bypass: always allowed
+        const roles = request.user?.roles || [];
+        if (Array.isArray(roles) && roles.includes('super-admin')) {
+            return;
+        }
         if (!permissions.includes(permission)) {
             throw app.httpErrors.forbidden('Missing required permission');
         }

@@ -35,9 +35,11 @@ export const createUserSchema = z
         password: z.string().min(8),
         firstName: z.string().min(1),
         lastName: z.string().min(1),
-        departmentId: z.uuid().nullable().optional(),
         roleId: z.uuid().optional(),
         roleIds: z.array(z.uuid()).default([]),
+        // new: direct role and permissions on user row
+        roleIdDirect: z.uuid().optional(),
+        permissionIds: z.array(z.uuid()).optional(),
         staffId: z.string().min(1, 'Staff ID is required and must not be empty'),
         commisionType: z.enum(['percentage', 'fixed']).optional(),
         commisionValue: z.number().optional().default(0),
@@ -45,7 +47,15 @@ export const createUserSchema = z
         staff: z.object(staffShape).optional()
     })
     .transform((data) => {
-        const { salary: topLevelSalary, staff, roleId, roleIds: rids, ...rest } = data;
+        const {
+            salary: topLevelSalary,
+            staff,
+            roleId,
+            roleIds: rids,
+            roleIdDirect,
+            permissionIds,
+            ...rest
+        } = data;
         const roleIds = Array.isArray(rids) && rids.length > 0 ? rids : (roleId ? [roleId] : []);
         const staffSalary =
             staff?.salary !== undefined
@@ -59,7 +69,14 @@ export const createUserSchema = z
                 : topLevelSalary !== undefined
                   ? { salary: Number(topLevelSalary) }
                   : undefined;
-        return { ...rest, roleIds, staff: mergedStaff };
+        return {
+            ...rest,
+            roleIds,
+            staff: mergedStaff,
+            // persist direct role/permissions if provided
+            roleId: roleIdDirect || roleId || undefined,
+            permissionIds: permissionIds && permissionIds.length > 0 ? permissionIds : undefined
+        };
     });
 
 export const updateUserSchema = z.object({
@@ -67,9 +84,10 @@ export const updateUserSchema = z.object({
     password: z.string().min(8).optional(),
     firstName: z.string().min(1).optional(),
     lastName: z.string().min(1).optional(),
-    departmentId: z.uuid().nullable().optional(),
     roleId: z.uuid().optional(),
     roleIds: z.array(z.uuid()).optional(),
+    roleIdDirect: z.uuid().optional(),
+    permissionIds: z.array(z.uuid()).optional(),
     status: z.enum(['active', 'suspended']).optional(),
     commisionType: z.enum(['percentage', 'fixed']).optional(),
     commisionValue: z.number().optional().default(0),
@@ -87,7 +105,6 @@ export const idParamSchema = z.object({
 export const listUsersQuerySchema = z.object({
     search: z.string().optional(),
     status: z.enum(['active', 'suspended']).optional(),
-    departmentId: z.uuid().optional(),
     roleId: z.uuid().optional(),
     dateFrom: z.iso.datetime().optional(),
     dateTo: z.iso.datetime().optional(),
@@ -101,7 +118,6 @@ export const createUserInviteSchema = z.object({
     email: z.email(),
     firstName: z.string().min(1),
     lastName: z.string().min(1),
-    departmentId: z.uuid().nullable().optional(),
     roleIds: z.array(z.uuid()).default([])
 });
 

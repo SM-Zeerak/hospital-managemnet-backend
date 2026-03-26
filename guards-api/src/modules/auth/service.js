@@ -13,48 +13,44 @@ import {
 const DEFAULT_RESET_TTL_MINUTES = Number(process.env.TENANT_PASSWORD_RESET_TTL_MINUTES || 60);
 
 export async function fetchActiveTenantUser(models, email) {
-    const { TenantUser, Department, Role, Permission } = models;
+    const { TenantUser, Role, Permission } = models;
+
+    // Fetch user without joins; departments and mapping tables were removed
     const user = await TenantUser.findOne({
         where: {
             email,
             status: 'active'
-        },
-        include: [
-            {
-                model: Department,
-                as: 'department'
-            },
-            {
-                model: Role,
-                as: 'roleEntities',
-                through: { attributes: [] },
-                attributes: ['id', 'name', 'description'],
-                include: [
-                    {
-                        model: Permission,
-                        as: 'permissionEntities',
-                        through: { attributes: [] }
-                    }
-                ]
-            }
-        ]
+        }
     });
-    
-    if (user) {
-        // Compute roles and permissions from associations
-        const roles = user.roleEntities?.map(r => r.name) || [];
-        const permissions = new Set();
-        user.roleEntities?.forEach(role => {
-            role.permissionEntities?.forEach(perm => {
-                permissions.add(perm.key);
-            });
-        });
-        
-        // Add as virtual properties
-        user.roles = roles;
-        user.permissions = Array.from(permissions);
+
+    if (!user) {
+        return null;
     }
-    
+
+    // Derive roles from direct role_id on user
+    const roles = [];
+    if (user.roleId && Role) {
+        const role = await Role.findByPk(user.roleId);
+        if (role) {
+            roles.push(role.name);
+        }
+    }
+
+    // Derive permissions from permission_ids (JSONB array of UUIDs)
+    let permissionKeys = [];
+    if (Array.isArray(user.permissionIds) && user.permissionIds.length > 0 && Permission) {
+        const perms = await Permission.findAll({
+            where: {
+                id: user.permissionIds
+            }
+        });
+        permissionKeys = perms.map((p) => p.key);
+    }
+
+    // Attach to user instance for authGuard / permissionGuard
+    user.roles = roles;
+    user.permissions = permissionKeys;
+
     return user;
 }
 

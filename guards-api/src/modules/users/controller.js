@@ -64,33 +64,7 @@ export function createListUsersController(app) {
                     } 
                 });
                 
-                if (totalUsersInSystem > 0) {
-                    // Check if any users have roles higher than level 0
-                    const usersWithRoles = await TenantUser.findAll({
-                        where: { 
-                            tenantId,
-                            ...(requesterId ? { id: { [Op.ne]: requesterId } } : {})
-                        },
-                        include: [{
-                            model: app.db.models.Role,
-                            as: 'roleEntities',
-                            through: { attributes: [] },
-                            required: false
-                        }],
-                        limit: 10,
-                        attributes: ['id']
-                    });
-                    
-                    // If any user has a role level > 0, the requester can't see them
-                    const hasHigherRoleUsers = usersWithRoles.some(user => {
-                        const userLevel = getUserHighestRoleLevel(user);
-                        return userLevel > 0;
-                    });
-                    
-                    if (hasHigherRoleUsers) {
-                        throw app.httpErrors.forbidden('Insufficient role level to view users. You can only view users with equal or lower role levels.');
-                    }
-                }
+                // Role mappings were removed; we no longer compute higher-role visibility limits here.
             }
         }
         
@@ -121,33 +95,6 @@ export function createGetUserController(app) {
         
         if (!tenantId) {
             throw app.httpErrors.unauthorized('Tenant context required');
-        }
-        
-        // Check role level before querying - if role level is too low, deny access
-        if (requesterRoles.length > 0) {
-            const requesterLevel = getUserHighestRoleLevel({ roles: requesterRoles });
-            
-            // If requester has lowest role level (0) and there are users with higher roles,
-            // they won't be able to see anyone - deny access upfront
-            if (requesterLevel === 0) {
-                const { TenantUser } = app.db.models;
-                const targetUser = await TenantUser.findOne({
-                    where: { id, tenantId },
-                    include: [{
-                        model: app.db.models.Role,
-                        as: 'roleEntities',
-                        through: { attributes: [] },
-                        required: false
-                    }]
-                });
-                
-                if (targetUser) {
-                    const targetUserLevel = getUserHighestRoleLevel(targetUser);
-                    if (targetUserLevel > 0) {
-                        throw app.httpErrors.forbidden('Insufficient role level to view this user. You can only view users with equal or lower role levels.');
-                    }
-                }
-            }
         }
         
         const user = await findUserById(

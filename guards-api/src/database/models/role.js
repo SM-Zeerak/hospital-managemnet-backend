@@ -18,11 +18,6 @@ export function initRoleModel(sequelize) {
             description: {
                 type: DataTypes.TEXT,
                 allowNull: true
-            },
-            departmentId: {
-                type: DataTypes.UUID,
-                allowNull: true,
-                field: 'department_id'
             }
         },
         {

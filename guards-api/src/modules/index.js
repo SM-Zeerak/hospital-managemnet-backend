@@ -1,6 +1,5 @@
 import { registerTenantAuth } from './auth/index.js';
 import { registerUsersModule } from './users/index.js';
-import { registerDepartmentsModule } from './departments/index.js';
 import { registerRolesModule } from './roles/index.js';
 import { registerPermissionsModule } from './permissions/index.js';
 import { registerGuardsModule } from './guards/index.js';
@@ -51,7 +50,7 @@ export async function registerRoutes(app) {
     const modules = [
         registerTenantAuth,
         registerUsersModule,
-        registerDepartmentsModule,
+        // Departments module removed from guards-api
         registerRolesModule,
         registerPermissionsModule,
         registerGuardsModule,

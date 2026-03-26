@@ -21,65 +21,9 @@ function applyAssociations(models) {
         Guard
     } = models;
 
-    // Department <-> User associations
-    if (Department && TenantUser) {
-        Department.hasMany(TenantUser, {
-            as: 'users',
-            foreignKey: 'departmentId'
-        });
-
-        TenantUser.belongsTo(Department, {
-            as: 'department',
-            foreignKey: 'departmentId'
-        });
-    }
-
-    // Department <-> Role associations
-    if (Department && Role) {
-        Department.hasMany(Role, {
-            as: 'roles',
-            foreignKey: 'departmentId'
-        });
-
-        Role.belongsTo(Department, {
-            as: 'department',
-            foreignKey: 'departmentId'
-        });
-    }
-
-    // User <-> Role associations (many-to-many)
-    if (TenantUser && Role) {
-        TenantUser.belongsToMany(Role, {
-            through: 'user_role_map',
-            as: 'roleEntities',
-            foreignKey: 'user_id',
-            otherKey: 'role_id'
-        });
-
-        Role.belongsToMany(TenantUser, {
-            through: 'user_role_map',
-            as: 'userEntities',
-            foreignKey: 'role_id',
-            otherKey: 'user_id'
-        });
-    }
-
-    // Role <-> Permission associations (many-to-many)
-    if (Role && Permission) {
-        Role.belongsToMany(Permission, {
-            through: RolePermission,
-            as: 'permissionEntities',
-            foreignKey: 'role_id',
-            otherKey: 'permission_id'
-        });
-
-        Permission.belongsToMany(Role, {
-            through: RolePermission,
-            as: 'roleEntities',
-            foreignKey: 'permission_id',
-            otherKey: 'role_id'
-        });
-    }
+    // NOTE: Department table and mapping tables (user_role_map, role_permission_map)
+    // were removed from guards-api. We keep models for compatibility but do NOT
+    // define associations that would join against non-existent tables.
 
     // Password Reset associations
     if (TenantUser && TenantPasswordReset) {

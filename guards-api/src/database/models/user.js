@@ -41,10 +41,16 @@ export function initTenantUserModel(sequelize) {
                 allowNull: false,
                 field: 'last_name'
             },
-            departmentId: {
+            roleId: {
                 type: DataTypes.UUID,
                 allowNull: true,
-                field: 'department_id'
+                field: 'role_id'
+            },
+            permissionIds: {
+                // Stored as JSONB array of UUID strings for flexibility
+                type: DataTypes.JSONB,
+                allowNull: true,
+                field: 'permission_ids'
             },
             status: {
                 type: DataTypes.STRING(20),

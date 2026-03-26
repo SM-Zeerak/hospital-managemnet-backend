@@ -100,11 +100,14 @@ export function createLoginController(app) {
         if (userData) {
             try {
                 // Force serialization to catch any circular references
-                plainUserData = JSON.parse(JSON.stringify(userData));
-                console.log('[LOGIN] User data serialized successfully');
+                const serialized = JSON.parse(JSON.stringify(userData));
+                // Strip raw permissionIds from login response
+                const { permissionIds, ...rest } = serialized;
+                plainUserData = rest;
+                console.log('[LOGIN] User data serialized successfully (permissionIds stripped)');
             } catch (error) {
                 console.error('[LOGIN] Failed to serialize user data:', error);
-                // Fallback: manually extract safe properties
+                // Fallback: manually extract safe properties without permissionIds
                 plainUserData = {
                     id: userData.id,
                     email: userData.email,
